@@ -1,6 +1,6 @@
-baseURL = "https://example.com/"
+baseURL = "https://pmasschelier.github.io"
 theme = "hugo-ficurinia"
-title = "My nice blog"
+title = "My dev journey"
 languageCode = "en"
 defaultContentLanguage = "en"
 
@@ -14,8 +14,8 @@ summaryLength = 70  # number of words for article summaries
 
 
 [params]
-    author = "Gabriele Musco"
-    description = "A description for my website"  # this will be added as metadata
+    author = "Paul-Marie Masschelier"
+    description = "My developper journey"  # this will be added as metadata
 
     posts = "posts"  # content directory where to find home page posts; default searches in "posts" and "post"
     showPostsLink = true  # show or hide the link to the simple post list
@@ -29,12 +29,10 @@ summaryLength = 70  # number of words for article summaries
     homeSinglePage = "/home"
 
     # It's best to put these icons in the "static" folder of your site
-    logo = "/logo.svg"
+    logo = "/logo.png"
     favicon = "/favicon.png"  # 32x32
     faviconIco = "/favicon.ico"  # 32x32
     appletouch = "/apple-touch-icon.png"  # 180x180
-    svgicon = "/logo.svg"
-    icon512 = "/icon512.png"  # 512x512 png image
 
     logoRightOfTitle = false  # positions the logo to the right of the title; default: false
 
@@ -75,13 +73,15 @@ summaryLength = 70  # number of words for article summaries
 
     underlineTitleLinks = false  # show an underline also for links that are titles
 
+	math = true
+
     # enable comments support with commento using the script from your server
     commento = "https://example.com/js/commento.js"
 
     # enable comments support with cactus comments (cactus.chat)
-    cactusCommentsSiteName = "example.com"
-    cactusCommentsServerName = "cactus.chat"
-    cactusCommentsHomeserver = "https://matrix.cactus.chat:8448"
+    # cactusCommentsSiteName = "example.com"
+    # cactusCommentsServerName = "cactus.chat"
+    # cactusCommentsHomeserver = "https://matrix.cactus.chat:8448"
 
     # enable analytics using Plausible
     plausibleScriptUrl = "https://something.com/..."
@@ -137,7 +137,7 @@ summaryLength = 70  # number of words for article summaries
     [[menu.icons]]
         identifier = "gitlab"
         name = "GitLab"
-        url = "https://gitlab.com/gabmus"
+        url = "https://gitlab.com/pmasschelier"
         weight = 10
     [[menu.icons]]
         identifier = "gnome"
@@ -149,3 +149,15 @@ summaryLength = 70  # number of words for article summaries
 # it allows to output the article list as paged JSON so that "pages" can be retrieved via javascript
 [outputs]
     home = ["HTML", "JSON"]
+
+
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.extensions]
+      [markup.goldmark.extensions.passthrough]
+        enable = true
+        [markup.goldmark.extensions.passthrough.delimiters]
+          block = [['\[', '\]'], ['$$', '$$']]
+          inline = [['\(', '\)']]
+
