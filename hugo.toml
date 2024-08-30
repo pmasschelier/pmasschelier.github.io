@@ -7,7 +7,7 @@ defaultContentLanguage = "en"
 # this will be included in the footer after the current year the site is last
 # built, followed by the (c) symbol
 # you can use markdown inside this field
-copyright = "Some copyright notice - [my license](https://example.com/license)"
+# copyright = "Some copyright notice - [my license](https://example.com/license)"
 
 paginate = 5  # number of articles per page in the index
 summaryLength = 70  # number of words for article summaries
@@ -39,7 +39,7 @@ summaryLength = 70  # number of words for article summaries
     showTags = true  # show the Tags menu item; default true
     showRss = true  # show the link for the RSS feed; default true
 
-    imageInArticlePreview = false  # show images in article preview; default false
+    imageInArticlePreview = true  # show images in article preview; default false
     fitImageInArticlePreview = false  # make article preview images fit the article preview instead of getting cropped
     articleSummary = true  # show a summary in article preview; default true
     
@@ -58,7 +58,7 @@ summaryLength = 70  # number of words for article summaries
     buttonTags = false  # enable button tag style; default false
     tagsInArticlePreview = true  # enable tags list in the article preview card
     gridView = false  # show post list as a grid. goes well with paperCards
-    bigArticleTitle = false  # makes the title in the single article view bigger
+    bigArticleTitle = true  # makes the title in the single article view bigger
     navtype = "standard"  # changes the style of the pagination, available styles are: "standard", "circles"
     enableShadow = false  # shows a shadow around some elements
     menuStyle = "standard"  # changes the style of the main site navigation menu, available styles are: "standard", "buttons"
@@ -69,7 +69,7 @@ summaryLength = 70  # number of words for article summaries
     searchMenuLink = false  # add a search link to the navigation menu; requires enableSearch
     mobileHamburgerNav = false  # alternative hamburger menu layout for the main nav menu when screen is small
 
-    enableFeatured = false  # enable a particular view for articles marked as featured (featured: true in the article frontmatter)
+    enableFeatured = true  # enable a particular view for articles marked as featured (featured: true in the article frontmatter)
 
     underlineTitleLinks = false  # show an underline also for links that are titles
 
@@ -150,14 +150,20 @@ summaryLength = 70  # number of words for article summaries
 [outputs]
     home = ["HTML", "JSON"]
 
-
+[taxonomies]
+    tag = "tags"
+    category = "categories"
 
 [markup]
-  [markup.goldmark]
-    [markup.goldmark.extensions]
-      [markup.goldmark.extensions.passthrough]
-        enable = true
-        [markup.goldmark.extensions.passthrough.delimiters]
-          block = [['\[', '\]'], ['$$', '$$']]
-          inline = [['\(', '\)']]
+	[markup.highlight]
+		style = 'base16-snazzy'
+	[markup.goldmark]
+		[markup.goldmark.renderer]
+			unsafe = true
+		[markup.goldmark.extensions]
+			[markup.goldmark.extensions.passthrough]
+				enable = true
+				[markup.goldmark.extensions.passthrough.delimiters]
+					block = [['\[', '\]'], ['$$', '$$']]
+					inline = [['\(', '\)']]
 
