@@ -8,10 +8,14 @@ toc = true
 
 Writing assembly is a tedious work.
 
-My greatest issues with assembly language programming are the lack of names for local variables, the need to write the same assembly code repetitively (for instance function's prologue an epilogue) and the lack of data structures.
+Some of my greatest issues with assembly language programming are
+- the lack of names for local variables
+- the need to write the same assembly code repetitively (for instance function's prologue an epilogue)
+- and the lack of data structures.
+
 These are three good reasons to learn a preprocessor language when you learn to write assembly and there could be a lot of others reasons like the need to adapt the code to the cpu features, or the need to generate large portions of code (like declaring an array of 1024 bytes filled with ones), etc.
 
-The goal of this post is to introduce you to the nasm preprocessor which is way more powerful than the C preprocessor.
+The goal of this post is to introduce you to the **nasm preprocessor** which is a way more powerful preprocessor than the C one.
 
 Each time you want to check the preprocessed output of a snippet you can do so by using the -E option of nasm which will cause nasm to pre-process the file and print the output to stdout without actually assembling anything.
 
@@ -222,9 +226,11 @@ myfunc:
 ```
 
 {{< box important >}}
-I wouldn't recommend to use the retz and retc macro to make early return as according to the [Intel Optimization Reference Manual](https://cdrdv2.intel.com/v1/dl/getContent/671488) 3.4.1.2 when using static prediction, forward branch are not taken. But early returns are often used as a way to manage errors so we want them the branch to be predicted as taken (skipping the return instruction).
+I wouldn't recommend to use the retz and retc macro to make early return as according to the [Intel Optimization Reference Manual](https://cdrdv2.intel.com/v1/dl/getContent/671488) 3.4.1.2 when using static prediction, forward branch are not taken. But early returns are often used as a way to manage errors so we want them to be unlikely and the branch to be predicted as taken (skipping the return instruction).
 
 So you can use these macros but remember it will result in branch mispredictions if the return is unlikely.
+
+If you want to have make early returns though you should probably jump to a .exit label at the end of the function.
 {{< /box >}}
 
 ### Varying amount of parameters
@@ -255,7 +261,7 @@ The macro can also have optional parameters for which you can provide a default 
 The syntax to indicate that the macro take at least 3 parameters and at most 5, with the 4th and 5th parameters respectively defaulting to eax and [eax+2] is:
 
 ```asm
-%macro mymacro 3-5 eax, [ebx+2]``
+%macro mymacro 3-5 eax, [ebx+2]
 ```
 
 Using this knowledge, let's define a macro to exit the program which take an exit code as optional parameter:
@@ -322,31 +328,31 @@ This means that we can use conditional directives to perform tests over the macr
 
 For example, our write macro can be extended to take advantage of %ifstr and %ifid in the following fashion:
 ```asm
-SYS_write equ 1			; sys_write is the syscall n°1
+SYS_write equ 1		               	; sys_write is the syscall n°1
 
 ; For this version we need at least 2 parameter because we'll test the type of the second one.
-%macro sys_write 2-3+ 	; The third parameter will be optional and greedy
+%macro sys_write 2-3+ 	            ; The third parameter will be optional and greedy
 
-		mov edi, %1 			; put the filehandle in edx
+		mov edi, %1                 ; put the filehandle in edx
   %ifstr %2
 	    jmp %%endstr
-%%str:				; we define a macro-local label 
-    %if %0 == 3		; If there are three parameters
-		db %2, %3		; and drop all the parameters from the second one as bytes
+%%str:				                ; we define a macro-local label 
+    %if %0 == 3		                ; If there are three parameters
+		db %2, %3	                ; and drop all the parameters from the second one as bytes
 	%else
-		db %2, %3	; otherwise we drop the second parameter as bytes
+		db %2   	                ; otherwise we drop the second parameter as bytes
 	%endif
 %%endstr:
 		mov rsi, %%str 				; put the adress of the string in esi
 		mov edx, %%endstr - %%str	; put the size of the string in edx
   %elifid %2
 		mov rsi, %2 				; put the adress of the string in esi
-		mov edx, %3				; put the size of the string in edx
+		mov edx, %3				    ; put the size of the string in edx
   %else
     %error "The second parameter of write should be a string or an identifier"
   %endif
 
-		mov eax, SYS_write 		; we put the syscall number in eax
+		mov eax, SYS_write 		    ; we put the syscall number in eax
 		syscall
 %endmacro
 ```
@@ -448,7 +454,7 @@ iota_byte:
 	dec rcx				; decrement rcx
 	mov [rsi + rcx], cl ; write cl at rsi + rcx
 	test rcx, rcx		; set the status register
-	until e				; repeat until rcx == 0
+	until z				; repeat until rcx == 0
 ```
 
 We can (and will later on), define all the common kinds of control structures that exist in higher level languages.
@@ -496,14 +502,14 @@ fibo:
 	; test for final case
 	test rdi, (~1)
 	jz .zero_or_one 	; fallthrough is the likely case
-	mov [rbp-0x10], rdi 	; save n on stack
-	sub rdi, 1
+	mov [rbp-0x8], rdi 	; save n on stack
+	sub rdi, 1          ; rdi = n - 1
 	call fibo			; rax = fibo(n - 1)
-	mov [rbp-0x8], rax	; save fibo(n - 1) on stack
-	mov rdi, [rbp-0x10]	; rdi = n
-	sub rdi, 2
+	mov [rbp-0x10], rax	; save fibo(n - 1) on stack
+	mov rdi, [rbp-0x8]	; rdi = n
+	sub rdi, 2          ; rdi = n - 2
 	call fibo			; rax = fibo(n - 2)
-	mov rdx, [rbp-0x8]	; rdx = fibo(n - 1)
+	mov rdx, [rbp-0x10]	; rdx = fibo(n - 1)
 	add rax, rdx		; rax = fibo(n - 2) + fibo(n - 1)
 	jmp .end			; jump to epilogue
 .zero_or_one:
@@ -553,24 +559,26 @@ To rename the context on top of the context-stack we can use the %repl directive
 
 A sample usage of these macros might look like:
 ```asm
-	cmp     ax,bx 
+	cmp ax, bx 
 	if ae					; if(ax >= bx)
-		cmp    bx,cx 
+		cmp bx, cx 
 		if ae 				; if(bx >= cx)
-			mov     ax,cx 
+			mov ax, cx 
 		else 
-			mov     ax,bx 
+			mov ax, bx 
 		endif 
 	else 
-		cmp ax,cx
+		cmp ax, cx
 		if ae				; if(ax >= cx)
-			mov     ax,cx 
+			mov ax, cx 
 		endif 
 	endif
 ```
 
 {{< box important >}}
-Note that according to the common rules of branch prediction the first if branch is expected to be the likely case and the else branch should be the unlikely one. Keep that in mind when using these macros.
+Note that according to the common rules of branch prediction **the if branch is expected to be the likely case** and the else branch should be the unlikely one.
+
+This is the opposite of C language's conditionals. Keep that in mind when using these macros.
 {{< /box >}}
 
 ## Simplifing references to variables
