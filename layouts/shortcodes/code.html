@@ -1,0 +1,7 @@
+{{ $path := .Get "file" }}
+{{ $lang := .Get "language" }}
+{{ with .Page.Resources.Get $path }}
+  {{ (print "```" $lang "\n" .Content "\n```") | markdownify }}
+{{ else }}
+  {{ errorf "Unable to get page resource %q" $path }}
+{{ end }}
