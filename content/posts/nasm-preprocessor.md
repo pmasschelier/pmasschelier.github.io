@@ -6,6 +6,8 @@ tags = [ 'asm', 'x86', 'x86_64', 'nasm', 'preprocessor']
 toc = true
 +++
 
+## Why should you use the nasm preprocessor ?
+
 Writing assembly is a tedious work.
 
 Some of my greatest issues with assembly language programming are
@@ -13,11 +15,9 @@ Some of my greatest issues with assembly language programming are
 - the need to write the same assembly code repetitively (for instance function's prologue an epilogue)
 - and the lack of data structures.
 
-These are three good reasons to learn a preprocessor language when you learn to write assembly and there could be a lot of others reasons like the need to adapt the code to the cpu features, or the need to generate large portions of code (like declaring an array of 1024 bytes filled with ones), etc.
+These are three good reasons to learn a preprocessor language when you learn to write assembly and there are a lot of others like the need to adapt the code to the cpu features, or the need to generate large portions of code (like declaring an array of 1024 bytes filled with ones), etc.
 
 The goal of this post is to introduce you to the **nasm preprocessor** which is a way more powerful preprocessor than the C one.
-
-Each time you want to check the preprocessed output of a snippet you can do so by using the -E option of nasm which will cause nasm to pre-process the file and print the output to stdout without actually assembling anything.
 
 > *Disclaimer: This post intends to be a reminder of useful nasm preprocessor functionalities. It is mainly for my personal use and reflects what i judge "useful". If you want an exhaustive view of the nasm preprocessor you can directly read the nasm documentation [here](https://www.nasm.us/xdoc/2.16.03/html/nasmdoc4.html) Moreover some of the examples in this post are shamelessly copied from the nasm documentation. Note that they all were translated to linux-x86_64 asm.*
 
@@ -25,67 +25,89 @@ Each time you want to check the preprocessed output of a snippet you can do so b
 
 ### Include a source file
 
-Like with the C preprocessor, you can include a source file at the current line by using the %include directive.
+Like with the C preprocessor, you can include a source file at the current line by using the  `%include` directive.
 You can use it to create a file containing all the macros we will define and include their definition in your future asm source files.
-```asm
+```nasm
 %include "macros.asm"
 ```
+
+This will insert the content of the file at the current line.
+
+Like with the C preprocessor you can use header guards in included files:
+```nasm
+%ifndef MACROS_ASM
+%define MACROS_ASM
+; You can put here the
+; content of your macros.asm
+; file
+%endif
+```
+
+The included files are found in the include path which can be specified in the compile command with the `-I` flag.
+
+{{< admonition tip >}}
+Each time you want to check the preprocessed output of a snippet you can do so by using the -E option of nasm which will cause nasm to pre-process the file and print the output to stdout without actually assembling anything.
+{{< /admonition >}}
 
 ### Include a binary file
 
 The nasm language contains the incbin directive to include the binary content of an external file in our object file.
 If you use incbin in your program it will actually use the macro wrapped around the incbin directive to search the filename in the path and add it to the dependency list.
-```asm
-incbin  "file.dat"			; include the whole file 
-incbin  "file.dat",1024		; skip the first 1024 bytes 
-incbin  "file.dat",1024,512	; skip the first 1024, and 
-							; actually include at most 512
+```nasm
+incbin "file.dat"               ; include the whole file 
+incbin "file.dat",1024          ; skip the first 1024 bytes 
+incbin "file.dat",1024,512      ; skip the first 1024, and actually include at most 512
 ```
 
 ## Defining single-line macros
 
-### Our first directive: %define
+You had a first glimpse at nasm macros with the header guard we used for `macros.asm`.
 
-The simpler way to define a macro with nasm as with the C-preprocessor is to use the directive %define. It should be very familiar to you if you already used C.
+We used `%ifndef`, `%define` and `%endif` to conditionally include the file only once. Let's see what else we can do with the `%define` directive.
+
+### Defining macros with %define
+
+The simpler way to define a macro with nasm as with the C-preprocessor is to use the directive `%define`. It should be very familiar to you if you already used C.
 
 You can define object macros or function macros using this directive.
 
-```asm
+```nasm
 ; A macro with no parameters
 %define ctrl    0x1F &
 ; A two parameter macro
 %define param(a,b) ((a)+(a)*(b)) 
-
-        mov     byte [param(2,ebx)], ctrl 'D'
+    mov byte [param(2,ebx)], ctrl 'D'
 ```
 
 Which will expand to:
-```asm
-        mov     byte [(2)+(2)*(ebx)], 0x1F & 'D'
+```nasm
+    mov byte [(2)+(2)*(ebx)], 0x1F & 'D'
 ```
 
-It can be used to define constants as well as the equ directive, but is way more-powerful.
+It can be used to define constants as well as the `equ` directive, but is way more-powerful.
 
-A notable difference between %define and equ is that %define constants are expanded when invoked, while equ constants are expanded when defined.
+A notable difference between `%define` and `equ` is that `%define` constants are expanded when invoked, while `equ` constants are expanded when defined.
 
 For instance:
-```asm
+```nasm
 ; addr will expand to the location of the assembly position
-addr 	equ			$ ; ...of this line
-%define 	addr	$ ; ...of the line in which the macro is invoked
+; - of this line:
+addr 	equ			$
+; of the line in which the macro is invoked:
+%define 	addr	$
 ```
 
-If you want %define content to be expanded on definition **you can use the alternative directive: %xdefine.**
+If you want `%define` content to be expanded on definition **you can use the alternative directive: `%xdefine`.**
 
-The main difference between %define and #define from the C-processor is that with nasm, macro functions can be overloaded.
+The main difference between `%define` and `#define` from the C-processor is that with nasm, macro functions can be overloaded.
 
-```asm
+```nasm
 ; macro function can be overloaded
 %define foo(x) 1+x
 %define foo(x, y) 1+x+y
 ```
 However a macro function can't coexist with a macro object of the same name.
-```asm
+```nasm
 ; nasm will produce 'error: macro `foo' defined both with and without parameters [-w+error=pp-macro-def-param-single]'
 %define foo bar 
 ```
@@ -93,30 +115,37 @@ However a macro function can't coexist with a macro object of the same name.
 A macro argument can be omitted if it is never used.
 Which means an overload macro function cannot have zero arguments (A macro defined with empty parenthesis is a sub-case of functions with one unused argument).
 
-As in C, a single-line macro can be undefined using the %undef directive.
+```nasm
+%define overload(x) db 15   ; Define a single-line macro with one argument
+%define overload() db 10    ; Redifine overload as a macro with a single unused argument
+        overload(aaa)   ; will expand to db 10
+        overload()      ; will expand to db 10 too
+```
+
+As in C, a single-line macro can be undefined using the `%undef` directive.
 
 ### Macro objects types
 
 Macro objects can have one of the four types: numeric, string, tokens and aliases.
 Let's examine the two more useful ones: numerics and strings.
 
-We can define macro numerics using the %assign directive.
+We can define **macro numerics** using the `%assign` directive.
 
 The assign directive take an argument which has to be a *critical expression* and evaluate to a pure number (it can't be a symbol). The nasm documentation refers to a *critical expression* as:
 > an expression whose value is required to be computable in the first pass, and which must therefore depend only on symbols defined before it.
 
-As with %define, a numeric macro can be redefined, which allow us to increment our macro:
-```asm
+As with `%define`, a numeric macro can be redefined, which allow us to increment our macro:
+```nasm
 %assign i 1
 ; here the macro will expand to 1
 %assign i i+1
 ; from now the macro will expand to 2
 ```
 
-A numeric macro can also be defined using the %strlen directive which will define a macro equals to the length of the expanded parameter if its a string.
+A numeric macro can also be defined using the `%strlen` directive which will define a macro equals to the length of the expanded parameter if its a string.
 
-We also have a directive to define macro strings: %defstr
-```asm
+We also have a directive to define **macro strings**: `%defstr`
+```nasm
 ; Both lines are equivalent
 %defstr test TEST
 %define test 'TEST'
@@ -124,9 +153,9 @@ We also have a directive to define macro strings: %defstr
 %strlen length test
 ```
 
-The %defstr directive can be useful with another directive: %!, which allows to read environment variables.
+The `%defstr` directive can be useful with another directive: `%!`, which allows to read environment variables.
 For instance to define a string containing the value of the $PATH variable (at compile time !!):
-```asm
+```nasm
 %defstr PATH %!PATH
 ```
 
@@ -134,7 +163,7 @@ For instance to define a string containing the value of the $PATH variable (at c
 
 You can ensure an argument of a macro is a valid numeric expression by prefixing the name of the parameter with an equal sign.
 The argument will be evaluated after its expansion.
-```asm
+```nasm
 
 %define raxset(expr) mov rax, expr
 	raxset(1 + 5) 	; will expand to mov rax, 1 + 5
@@ -149,7 +178,7 @@ The argument will be evaluated after its expansion.
 
 You can turn an argument into a quoted string by prefixing it with an ampersand ('&'). It will surround the argument with double-quote, even if it is already a quoted string. If you want to avoid this behavior you can use the double-ampersand prefix.
 
-```asm
+```nasm
 %define add_lf(&str) db str, 10, 0
 	add_lf(1 + 5)		; will expand to db '1 + 5', 10, 0
 	add_lf("1 + 5")		; will expand to db '"1 + 5"', 10, 0
@@ -164,20 +193,21 @@ You can turn an argument into a quoted string by prefixing it with an ampersand 
 
 ### Our lovely %macro and %endmacro couple
 
-Multi-line macro are defined using the %macro directive an have to be closed using a %endmacro directive.
+Multi-line macro are defined using the  `%macro` directive an have to be closed using a  `%endmacro` directive.
 You have to indicate the amount of parameters the macro can take after its name.
 
 Multi-line macros can be use to reduce aggressively the amount of logic repetition in your code.
 
 A useful example, is the definition of the function prologue:
-```asm
+```nasm
 %macro prolog 1		; The number of parameter is 1
 	push rbp
 	mov rbp, rsp
 	sub rsp, %1 	; %1 refers to the first parameter
 %endmacro
 
-myfunc: prolog 0x40
+myfunc:
+    prolog 0x40
 ; will expand to:
 ; 	push rbp
 ; 	mov rbp, rsp
@@ -188,7 +218,7 @@ A macro can take any amount of parameters which will be accessed via their 1-bas
 
 %0 is reserved for the number of arguments passed to the macro because as we'll see later, multi-line macros can take a variable amount of parameters.
 
-As single-line macros can be undefined with %undef, multi-line macro can be undefined with the %unmacro directive.
+In the same way that single-line macros can be undefined with  `%undef`, multi-line macro can be undefined with the  `%unmacro` directive.
 
 ### Macro-local labels
 
@@ -197,11 +227,11 @@ Sometimes you need your multi-line macro to contain a label to perform a jump in
 You can then use a macro local label which is prefixed by '%%' and will expand to a different symbol for each invocation of the macro.
 
 Let's write a macro which returns when the Z flag is set:
-```asm
+```nasm
 %macro  retz 0 
-        jnz %%skip 	; jump over the ret instruction if the Z flag is not set
-        ret         ; returns from the function
-    %%skip:         ; macro-local label
+    jnz %%skip 	; jump over the ret instruction if the Z flag is not set
+    ret         ; returns from the function
+%%skip:         ; macro-local label
 %endmacro
 ```
 
@@ -213,7 +243,7 @@ As you can enforce a single-line macro parameter to be a numeric expression, you
 Referring to a multi-line macro parameter (the first in our example) using %+1 will ensure that it will be a condition code. You can also refer to a condition code using %-1 which will replace the condition code by its negation.
 
 Using this syntax we can now generalize our previous retz macro by taking a condition code as parameter.
-```asm
+```nasm
 %macro  retc 1 
 		j%-1 %%skip	; jump over the ret instruction if the condition code is false
 		ret			; returns from the function
@@ -225,23 +255,23 @@ myfunc:
 	retc ne			; returns if rax is null
 ```
 
-{{< box important >}}
-I wouldn't recommend to use the retz and retc macro to make early return as according to the [Intel Optimization Reference Manual](https://cdrdv2.intel.com/v1/dl/getContent/671488) 3.4.1.2 when using static prediction, forward branch are not taken. But early returns are often used as a way to manage errors so we want them to be unlikely and the branch to be predicted as taken (skipping the return instruction).
+{{< admonition warning >}}
+I wouldn't recommend to use the retz and retc macro to make early return as according to the [Intel Optimization Reference Manual](https://cdrdv2.intel.com/v1/dl/getContent/671488) 3.4.1.2 when using static prediction, forward branches are predicted to not be taken. But early returns are often used as a way to manage errors so we want them to be unlikely and the branch to be predicted as taken (skipping the return instruction).
 
 So you can use these macros but remember it will result in branch mispredictions if the return is unlikely.
 
-If you want to have make early returns though you should probably jump to a .exit label at the end of the function.
-{{< /box >}}
+If you want to make early returns though you should probably jump to a .exit label at the end of the function [the same way the C compiler will do](https://godbolt.org/#g:!((g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:18,fontUsePx:'0',j:1,lang:___c,selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:'%23include+%3Cstdio.h%3E%0A%0Aint+main(int+argc,+char*+argv%5B%5D)+%7B%0A++++if(argc+%3D%3D+0)%0A++++++++return+-1%3B%0A++++for(unsigned+i+%3D+0%3B+i+%3C+argc%3B+i%2B%2B)%0A++++++++puts(argv%5Bi%5D)%3B%0A++return+0%3B%0A%7D'),l:'5',n:'0',o:'C+source+%231',t:'0')),k:57.075553476053145,l:'4',m:50,n:'0',o:'',s:0,t:'0'),(g:!((h:output,i:(editorid:1,fontScale:18,fontUsePx:'0',j:1,wrap:'1'),l:'5',n:'0',o:'Output+of+x86-64+gcc+14.2+(Compiler+%231)',t:'0')),header:(),l:'4',m:50,n:'0',o:'',s:0,t:'0')),k:58.79910913605523,l:'3',n:'0',o:'',t:'0'),(g:!((g:!((h:compiler,i:(compiler:cg142,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:___c,libs:!(),options:'-O2',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+x86-64+gcc+14.2+(Editor+%231)',t:'0')),k:46.82444577591372,l:'4',m:60.76707291803545,n:'0',o:'',s:0,t:'0'),(g:!((h:tool,i:(args:'',argsPanelShown:'0',compilerName:'x86-64+gcc+14.2',editorid:1,fontScale:14,fontUsePx:'0',j:1,monacoEditorHasBeenAutoOpened:'1',monacoEditorOpen:'1',monacoStdin:'1',stdin:'',stdinPanelShown:'1',toolId:clangtidytrunk,treeid:0,wrap:'1'),l:'5',n:'0',o:'clang-tidy+(trunk)+x86-64+gcc+14.2+(Editor+%231,+Compiler+%231)',t:'0')),l:'4',m:39.232927081964554,n:'0',o:'',s:0,t:'0')),k:41.20089086394483,l:'3',n:'0',o:'',t:'0')),l:'2',n:'0',o:'',t:'0')),version:4).
+{{< /admonition >}}
 
 ### Varying amount of parameters
 
-The last parameters of a macro can be declared "greedy" adding a '+' after the parameter count declaration. Which means they will expand to the comma-separated list of all the additional arguments.
+The last parameter of a macro can be declared "greedy" adding a '+' after the parameter count declaration. Which means it will expand to the comma-separated list of all the additional arguments.
 
 Let's define a macro to write to a file on a 64-bit Unix system.
 It will take at least two parameters:
 - The first will be the file descriptor to which we want to write
 - The following parameters will be a list of sequence of bytes to write
-```asm
+```nasm
 SYS_write equ 1			; sys_write is the syscall n°1
 
 %macro sys_write 2+ 	; The second parameter will be greedy
@@ -257,15 +287,16 @@ SYS_write equ 1			; sys_write is the syscall n°1
 %endmacro
 ```
 
-The macro can also have optional parameters for which you can provide a default value.<br>
-The syntax to indicate that the macro take at least 3 parameters and at most 5, with the 4th and 5th parameters respectively defaulting to eax and [eax+2] is:
+The macro can also have optional parameters for which you can provide a default value.
 
-```asm
+The syntax to indicate that the macro take at least 3 parameters and at most 5, with the 4th and 5th parameters respectively defaulting to `eax` and `[eax+2]` is:
+
+```nasm
 %macro mymacro 3-5 eax, [ebx+2]
 ```
 
 Using this knowledge, let's define a macro to exit the program which take an exit code as optional parameter:
-```asm
+```nasm
 	SYS_exit equ 60 ; sys_exit is the syscall n°60
 EXIT_SUCCESS equ 0	; the success error code is 0
 
@@ -276,8 +307,8 @@ EXIT_SUCCESS equ 0	; the success error code is 0
 %endmacro
 ```
 
-With this two macro defined, our hello-world can be rewritten in a much more readable manner:
-```asm
+With these two macros defined, we can write a hello world much more readable than those you will see in most assembly tutorials:
+```nasm
 section .text
 
 global _start
@@ -292,7 +323,7 @@ _start:
 
 Similarly to the C preprocessor, NASM allows sections of a source file to be assembled only if certain conditions are met. The general syntax of this feature looks like this:
 
-```asm
+```nasm
 %if<condition> 
     ; some code which only appears if <condition> is met 
 %elif<condition2> 
@@ -301,24 +332,25 @@ Similarly to the C preprocessor, NASM allows sections of a source file to be ass
     ; this appears if neither <condition> nor <condition2> was met 
 %endif
 ```
-The inverse forms %ifn and %elifn are also supported.
+The inverse forms  `%ifn` and  `%elifn` are also supported.
 
-The %else clause is optional, as is the %elif clause. You can have more than one %elif clause as well.
+The  `%else` clause is optional, as is the  `%elif` clause. You can have more than one  `%elif` clause as well.
 
-The variants of the %if directives are:
-- %if: the code is assembled if the numerical expression evaluate to non-zero
-- %ifdef: the given single-line macro is already defined
-- %ifmacro: the given multi-line macro is already defined
-- %iftoken: the given tokens exapand to a single token
-- %ifctx: the given list of parameters contain the name of the context on top of the stack
-- %ifidn: the given two single-line macro expand to the same code
-- %idid: the first given token is an identifier
-- %ifstr: the first given token is a quoted string
-- %ifnum: the first given token is a integer numeric constant
-- %ifempty: the expanded parameters does not contain any content at all
-- %ifenv: the given environment variable exists
+| Variants of the  `%if` directive | the code is assembled if...                                                       |
+| ---                            | ---                                                                               |
+| `%if`			                 | the numerical expression evaluate to non-zero                                     |
+| `%ifdef`		                 | the given single-line macro is already defined                                    |
+| `%ifmacro`	                 | the given multi-line macro is already defined                                     |
+| `%iftoken`	                 | the given tokens exapand to a single token                                        |
+| `%ifctx`		                 | the given list of parameters contain the name of the context on top of the stack  |
+| `%ifidn`		                 | the given two single-line macro expand to the same code                           |
+| `%idid`		                 | the first given token is an identifier                                            |
+| `%ifstr`		                 | the first given token is a quoted string                                          |
+| `%ifnum`		                 | the first given token is a integer numeric constant                               |
+| `%ifempty`	                 | the expanded parameters does not contain any content at all                       |
+| `%ifenv`		                 | the given environment variable exists
 
-Each has its corresponding %elif, %ifn, and %elifn directives; for example, the equivalents to the %ifdef directive are %elifdef, %ifndef, and %elifndef.
+Each variant has its corresponding  `%elif`,  `%ifn`, and  `%elifn` directives; for example, the equivalents for the  `%ifdef` directive are  `%elifdef`,  `%ifndef`, and  `%elifndef`.
 
 ### Our final write macro
 
@@ -326,19 +358,19 @@ An important mechanism in the nasm preprocessor is that all the text contained i
 
 This means that we can use conditional directives to perform tests over the macro parameters and generate code depending on this parameters.
 
-For example, our write macro can be extended to take advantage of %ifstr and %ifid in the following fashion:
-```asm
+For example, our write macro can be extended to take advantage of  `%ifstr` and  `%ifid` in the following fashion:
+```nasm
 SYS_write equ 1		               	; sys_write is the syscall n°1
 
 ; For this version we need at least 2 parameter because we'll test the type of the second one.
 %macro sys_write 2-3+ 	            ; The third parameter will be optional and greedy
 
 		mov edi, %1                 ; put the filehandle in edx
-  %ifstr %2
+  %ifstr %2                         ; if the second parameter is a string
 	    jmp %%endstr
 %%str:				                ; we define a macro-local label 
     %if %0 == 3		                ; If there are three parameters
-		db %2, %3	                ; and drop all the parameters from the second one as bytes
+		db %2, %3	                ; we drop all the parameters from the second one as bytes
 	%else
 		db %2   	                ; otherwise we drop the second parameter as bytes
 	%endif
@@ -359,31 +391,49 @@ SYS_write equ 1		               	; sys_write is the syscall n°1
 
 Then the write macro can cope with being called in either of the following two ways:
 
-```asm
-        sys_write [file], strpointer, length 
-        sys_write [file], "hello", 13, 10
+```nasm
+    sys_write [file], strpointer, length 
+    sys_write [file], "hello", 13, 10
 ```
+
+{{< admonition tip "The %error directive" >}}
+We used the `%error` directive to generate and error under certain condition.
+
+This is very useful when you want to produce meaningful error messages.
+{{< /admonition >}}
 
 ### %rep directive and loop unrolling
 
-The times prefix can be used to repeat an instruction, but can't be used to repeat multi-line macros as they're expanded before the times prefix. To circumvent this, nasm gives us the %rep and %endrep directive, which repeat the inner code the number of times given as parameter.
+With nasm you can use the `times` prefix to repeat an instruction:
 
-We can compute the index of the loop using the %assign directive.
-```asm
+```nasm
+array:
+    times 3 db 0xA
+; Will be assembled to:
+; array:
+;   db 0xA
+;   db 0xA
+;   db 0xA
+```
+
+However it can't be used to repeat multi-line macros since these are expanded before the `times` prefix. To circumvent this, nasm gives us the  `%rep` and  `%endrep` directive, which repeat the inner code the number of times given as parameter.
+
+We can compute the index of the loop using the  `%assign` directive.
+```nasm
 %assign i 0 
-%rep    64 
-        inc     word [table+2*i] 
+%rep 64 
+    inc word [table+2*i] 
 %assign i i+1 
 %endrep
 ```
 
-A loop can be exited using a %exitrep directive (as the break keyword in C).
+A loop can be exited using a  `%exitrep` directive (as the break keyword in C).
 
-The %rotate directive moves all parameters of a macro to the left and the first parameter become the last one.
+The  `%rotate` directive moves all parameters of a macro to the left and the first parameter become the last one.
 The shift count is passed as a parameter. With a negative count the parameters are rotated to the right.
 
-The %rotate directive can be leveraged with %rep to iterate over the arguments of a multi-line macro:
-```asm
+The  `%rotate` directive can be leveraged with  `%rep` to iterate over the arguments of a multi-line macro:
+```nasm
 %macro multipush 1-* 
 	%rep %0 
 		push %1 
@@ -408,11 +458,11 @@ However to write control structures, we need to be able to reference some labels
 Luckily, the nasm preprocessor has a mechanism to make this possible: **the context stack**.
 
 The context stack allows to save on a stack some local labels and local single-line macros.
-Each local context can be named when it is pushed on the stack using the %push directive
+Each local context can be named when it is pushed on the stack using the  `%push` directive
 
-The context on the top of the stack can be restored using the %pop directive which take an optional context name. If a context name is given and it's not the name of the context on top of the stack, nasm will generate an error.
+The context on the top of the stack can be restored using the  `%pop` directive which take an optional context name. If a context name is given and it's not the name of the context on top of the stack, nasm will generate an error.
 
-```asm
+```nasm
 %push first
 ; define some context-local
 ; labels and macros...
@@ -426,28 +476,28 @@ The context on the top of the stack can be restored using the %pop directive whi
 
 ### Context-local labels
 
-Context-local labels can be defined and used with the %$label syntax.
+Context-local labels can be defined and used with the `%$label` syntax.
 
 This will allow us to write a simple repeat...until loop:
-```asm
+```nasm
 %macro repeat 0 
-    %push   repeat 
-    %$begin: 
+    %push repeat            ; Push a context named 'repeat' on top of the context-stack
+    %$begin:                ; Define a context-local label named 'begin'
 %endmacro 
 
 %macro until 1 
-        j%-1    %$begin 
-    %pop 
+        j%-1    %$begin     ; Jump to the context-local label 'begin'
+    %pop repeat             ; Pop the 'repeat' context from the context stack
 	%$end
 %endmacro
 ```
 
-{{< box info >}}
+{{< admonition >}}
 Here we define a backward branch which is expected to be taken. That's what we expect from a loop making this macro well suited for production use.
-{{< /box >}}
+{{< /admonition >}}
 
 And use it this way:
-```asm
+```nasm
 iota_byte:
 	mov rcx, rdi 		; rcx = 2nd arg
 	repeat
@@ -462,15 +512,15 @@ We can (and will later on), define all the common kinds of control structures th
 ### Context-local macros
 
 Context-local single-line macro can be define in just the same way.
-```asm
+```nasm
 %define %$localmac 3
 ```
 
-Macro and label from a higher context can both be accessed using %$mylabel for the parent, %$$mylabel for the grandparent and so on...
+Macro and label from a higher context can both be accessed using `%$mylabel` for the parent, `%$$mylabel` for the grandparent and so on...
 
 This allow us to retain information other than labels over multiple macro calls. Using this mechanism we can improve our prolog macro and write its companion the epilog macro:
 
-```asm
+```nasm
 %macro prolog 1
 	%push func					; push a new context on the stack
 	%define %$frame_size %1		; define the context-local macro frame_size
@@ -494,7 +544,7 @@ Now we can use our prolog macro to define the frame size and subtract it from rs
 
 Let's use a simple fibonnacci implementation as example:
 {{% columns %}}
-```asm
+```nasm
 ; fibo(rdi: u64)
 fibo:
 	; prologue
@@ -526,9 +576,9 @@ fibo:
 
 Using context-local labels, and the context renaming feature we can now define if..else..endif macros to simplify writing of conditions.
 
-To rename the context on top of the context-stack we can use the %repl directive.
+To rename the context on top of the context-stack we can use the  `%repl` directive.
 
-```asm
+```nasm
 %macro if 1 
     %push if 
     j%-1  %$ifnot 
@@ -558,7 +608,7 @@ To rename the context on top of the context-stack we can use the %repl directive
 ```
 
 A sample usage of these macros might look like:
-```asm
+```nasm
 	cmp ax, bx 
 	if ae					; if(ax >= bx)
 		cmp bx, cx 
@@ -575,11 +625,14 @@ A sample usage of these macros might look like:
 	endif
 ```
 
-{{< box important >}}
+{{< admonition warning >}}
 Note that according to the common rules of branch prediction **the if branch is expected to be the likely case** and the else branch should be the unlikely one.
 
-This is the opposite of C language's conditionals. Keep that in mind when using these macros.
-{{< /box >}}
+This is [similar to the code produced by gcc](https://godbolt.org/#g:!((g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:18,fontUsePx:'0',j:1,lang:___c,selection:(endColumn:2,endLineNumber:9,positionColumn:2,positionLineNumber:9,selectionStartColumn:2,selectionStartLineNumber:9,startColumn:2,startLineNumber:9),source:'%23include+%3Cstdio.h%3E%0A%0Aint+main(int+argc,+char*+argv%5B%5D)+%7B%0A++++if(argc+%3D%3D+0)%0A++++++++puts(%22Hello%22)%3B%0A++++else%0A++++++++puts(%22Good+bye%22)%3B%0A++return+0%3B%0A%7D'),l:'5',n:'0',o:'C+source+%231',t:'0')),k:57.075553476053145,l:'4',m:50,n:'0',o:'',s:0,t:'0'),(g:!((h:output,i:(editorid:1,fontScale:18,fontUsePx:'0',j:1,wrap:'1'),l:'5',n:'0',o:'Output+of+x86-64+gcc+14.2+(Compiler+%231)',t:'0')),header:(),l:'4',m:50,n:'0',o:'',s:0,t:'0')),k:58.79910913605523,l:'3',n:'0',o:'',t:'0'),(g:!((g:!((h:compiler,i:(compiler:cg142,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:___c,libs:!(),options:'-O2',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+x86-64+gcc+14.2+(Editor+%231)',t:'0')),k:46.82444577591372,l:'4',m:60.76707291803545,n:'0',o:'',s:0,t:'0'),(g:!((h:tool,i:(args:'',argsPanelShown:'0',compilerName:'x86-64+gcc+14.2',editorid:1,fontScale:14,fontUsePx:'0',j:1,monacoEditorHasBeenAutoOpened:'1',monacoEditorOpen:'1',monacoStdin:'1',stdin:'',stdinPanelShown:'1',toolId:clangtidytrunk,treeid:0,wrap:'1'),l:'5',n:'0',o:'clang-tidy+(trunk)+x86-64+gcc+14.2+(Editor+%231,+Compiler+%231)',t:'0')),l:'4',m:39.232927081964554,n:'0',o:'',s:0,t:'0')),k:41.20089086394483,l:'3',n:'0',o:'',t:'0')),l:'2',n:'0',o:'',t:'0')),version:4) for an if-else pair.
+
+However, when writing a series of if...elsif...elsif... you should have at most one branch misprediction for each case.
+Therefore, cases should be written [in reverse order](https://godbolt.org/#g:!((g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:18,fontUsePx:'0',j:1,lang:___c,selection:(endColumn:2,endLineNumber:11,positionColumn:2,positionLineNumber:11,selectionStartColumn:2,selectionStartLineNumber:11,startColumn:2,startLineNumber:11),source:'%23include+%3Cstdio.h%3E%0A%0Aint+main(int+argc,+char*+argv%5B%5D)+%7B%0A++++if(argc+%3D%3D+0)%0A++++++++puts(%22Hello%22)%3B%0A++++else+if(argc+%3D%3D+1)%0A++++++++puts(%22Hi%22)%3B%0A++++else%0A++++++++puts(%22Good+bye%22)%3B%0A++return+0%3B%0A%7D'),l:'5',n:'0',o:'C+source+%231',t:'0')),k:57.075553476053145,l:'4',m:50,n:'0',o:'',s:0,t:'0'),(g:!((h:output,i:(editorid:1,fontScale:18,fontUsePx:'0',j:1,wrap:'1'),l:'5',n:'0',o:'Output+of+x86-64+gcc+14.2+(Compiler+%231)',t:'0')),header:(),l:'4',m:50,n:'0',o:'',s:0,t:'0')),k:58.79910913605523,l:'3',n:'0',o:'',t:'0'),(g:!((g:!((h:compiler,i:(compiler:cg142,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:___c,libs:!(),options:'-O2',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+x86-64+gcc+14.2+(Editor+%231)',t:'0')),k:46.82444577591372,l:'4',m:60.76707291803545,n:'0',o:'',s:0,t:'0'),(g:!((h:tool,i:(args:'',argsPanelShown:'0',compilerName:'x86-64+gcc+14.2',editorid:1,fontScale:14,fontUsePx:'0',j:1,monacoEditorHasBeenAutoOpened:'1',monacoEditorOpen:'1',monacoStdin:'1',stdin:'',stdinPanelShown:'1',toolId:clangtidytrunk,treeid:0,wrap:'1'),l:'5',n:'0',o:'clang-tidy+(trunk)+x86-64+gcc+14.2+(Editor+%231,+Compiler+%231)',t:'0')),l:'4',m:39.232927081964554,n:'0',o:'',s:0,t:'0')),k:41.20089086394483,l:'3',n:'0',o:'',t:'0')),l:'2',n:'0',o:'',t:'0')),version:4).
+{{< /admonition >}}
 
 ## Simplifing references to variables
 
@@ -589,17 +642,17 @@ We already defined a bunch of macros to simplify system calls. But some system c
 It is the case for the stat system call for instance.
 
 C structures are very simple. It is basically a collection of named offsets.
-nasm preprocessor contains standard macros to define structures and declare instances of structures.
+nasm preprocessor contains the standard macros `struct` and `endstruc` to define structures and `istruc` and `iend` to declare instances of structures.
 
 The stat system call has this prototype
 ```c
 int stat(const char *restrict chemin, struct stat *restrict statbuf);
 ```
-And struct stat is defined in /usr/include/asm/stat.h
+And struct stat is defined in [/usr/include/asm/stat.h](https://github.com/torvalds/linux/blob/master/arch/x86/include/uapi/asm/stat.h).
 
 {{% columns %}}
 Using nasm preprocessor:
-```asm
+```nasm
 struc stat
 	st_dev:	 		resq 1
 	st_ino:	 		resq 1
@@ -646,7 +699,7 @@ struct stat {
 ```
 {{% /columns %}}
 
-The struc...endstruc pair of macro create a list of symbols: st_dev, st_ino... And each symbol is located at the relative offset of the member of the structure.
+The `struc`...`endstruc` pair of macro create a list of symbols: st_dev, st_ino... And each symbol is located at the relative offset of the member of the structure.
 
 It also define the symbol stat_size, by concatenating the struct name with _size.
 
@@ -658,7 +711,7 @@ file_stat:
 	resb stat_size
 ```
 Or initialized this way:
-```asm
+```nasm
 section .data
 file_stat:
 	istruc stat
@@ -669,7 +722,7 @@ file_stat:
 ```
 
 And members can be accessed using the [file_stat+st_dev] syntax.
-```asm
+```nasm
 section .text
 
 global _start
@@ -680,19 +733,44 @@ _start:
 	...
 ```
 
+{{< admonition tip "Fields as local labels" >}}
+Note that to avoid cluttering the global namespace you can define the struct fields as local label:
+
+```nasm
+struc stat
+	.dev:	 		resq 1
+	.ino:	 		resq 1
+	.mod:	 		resw 1 
+    ...
+endstruc
+```
+
+And access them this way:
+```nasm
+section .text
+
+global _start
+_start:
+	sys_stat "/var/log/messages", file_stat
+	mov r8, [file_stat + stat.dev]
+	mov r9, [file_stat + stat.ino]
+	...
+```
+{{< /admonition >}}
+
 ### Referencing stack parameters: %arg
 
-Simplifying references to local variables and parameters require giving some information on the structure of the stack.
-This is done using the %stacksize directive whose parameter must be one of: flat, flat64, large or small.
+Simplifying references to local variables and parameters requires giving some information on the structure of the stack.
+This is done using the  `%stacksize` directive whose parameter must be one of: `flat`, `flat64`, `large` or `small`.
 
 As long as after the call of the function rip is on the stack and local variables can be referenced using rbp you can use the flat64 parameter.
 
 On Linux 64-bits, the 6 first arguments are passed using the register. But the others are pushed on the stack in the inverse order they are defined.
 
-nasm gives us another directive %arg to name the adress in the stack of this pushed parameters.
-You have to give to %arg the list of these stack-parameters and their size in this format: [name]:[byte|word|dword|qword|tword|oword|yword|zword]
+nasm gives us another directive  `%arg` to name the adress in the stack of this pushed parameters.
+You have to give to  `%arg` the list of these stack-parameters and their size in this format: [name]:[byte|word|dword|qword|tword|oword|yword|zword]
 
-```asm
+```nasm
 section .text
 ; long func(long a, long b, long c, long d, long e, long f, long g, short h);
 global func
@@ -719,16 +797,16 @@ func:
 
 The nasm preprocessor can also relieve us of the burden of managing local variables' addresses and the frame size.
 
-We can declare local variables using the %local directive in the same way we used the %arg directive.
-Before a call to %local, the context-local macro %$localsize has to be defined as a numeric constant. %local will add the summed size of the local parameters to %$localsize.
+We can declare local variables using the  `%local` directive in the same way we used the  `%arg` directive.
+Before a call to  `%local`, the context-local macro `%$localsize` has to be defined as a numeric constant.  `%local` will add the summed size of the local parameters to %$localsize.
 
 We can improve our prolog macro so that it can take two optionals arguments:
 1. The initial value of %$localsize which will account for the "free space" we want in the stack frame, which is the space left above the local variables declarations.
-2. The list of local variables as the %local directive waits for, enclosed in brackets.
+2. The list of local variables as the  `%local` directive waits for, enclosed in brackets.
 
 Enclosing the parameters in brackets allows to pass as a single parameter comma and colon-separated tokens.
 
-```asm
+```nasm
 %macro prolog 0-2
 	%push func					; Push a context for the function
 %ifn %0 = 0						; If there are arguments
@@ -764,7 +842,7 @@ Enclosing the parameters in brackets allows to pass as a single parameter comma 
 
 We can now name our local variables in the fibonacci function defined earlier:
 
-```asm
+```nasm
 ; fibo(rdi: u64)
 fibo:
 	; prologue
@@ -773,18 +851,18 @@ fibo:
 	; test for final case
 	test rdi, (~1)
 	jz .zero_or_one 	; fallthrough is the likely case
-	mov [n], rdi 	; save n on stack
+	mov [n], rdi 	    ; save n on stack
 	sub rdi, 1
 	call fibo			; rax = fibo(n - 1)
-	mov [res], rax	; save fibo(n - 1) on stack
-	mov rdi, [n]	; rdi = n
+	mov [res], rax	    ; save fibo(n - 1) on stack
+	mov rdi, [n]	    ; rdi = n
 	sub rdi, 2
 	call fibo			; rax = fibo(n - 2)
-	mov rdx, [res]	; rdx = fibo(n - 1)
+	mov rdx, [res]	    ; rdx = fibo(n - 1)
 	add rax, rdx		; rax = fibo(n - 2) + fibo(n - 1)
 	jmp .end			; jump to epilogue
 .zero_or_one:
-	mov rax, rdi	; return n
+	mov rax, rdi	    ; return n
 .end:
 	; epilogue
 	epilog
@@ -792,13 +870,13 @@ fibo:
 
 ## Summary
 
-1. You can include source files using %include and binary files using the incbin macro
-2. You can define single-line macros using %define, %assign, %defstr...
-3. You can define multi-line macros using %macro...%endmacro. These can take a varying amount of parameters accessed using their index (starting from 1, %0 being the number of parameters)
-4. You can use %if..%elif..%else..%endif and their variants to assemble code conditionally
-5. You can use %rep..%endrep for loop unrolling and %exitrep to break the loop early
-6. You can use %push and %pop to manage the context stack and use the %$identifier syntax to declare context-local labels and macros
-7. You can use the %arg directive to name stack parameters and %local to name local variableo
+1. You can include source files using  `%include` and binary files using the incbin macro
+2. You can define single-line macros using  `%define`,  `%assign`,  `%defstr`...
+3. You can define multi-line macros using  `%macro`... `%endmacro`. These can take a varying amount of parameters accessed using their index (starting from 1, %0 being the number of parameters)
+4. You can use  `%if`.. `%elif`.. `%else`.. `%endif` and their variants to assemble code conditionally
+5. You can use  `%rep`.. `%endrep` for loop unrolling and  `%exitrep` to break the loop early
+6. You can use  `%push` and  `%pop` to manage the context stack and use the %$identifier syntax to declare context-local labels and macros
+7. You can use the  `%arg` directive to name stack parameters and  `%local` to name local variableo
 
 Moreover you earned yourself a set of handful macros to write cleaner assembly!
 
