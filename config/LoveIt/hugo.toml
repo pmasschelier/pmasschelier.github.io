@@ -541,6 +541,8 @@ dataDomain = ""
 # Yandex Metrica
 [params.analytics.yandexMetrica]
 id = ""
+[params.analytics.goatCounter]
+code = "pmasschelier"
 
 #  Cookie consent config
 [params.cookieconsent]
