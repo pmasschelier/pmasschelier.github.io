@@ -398,11 +398,11 @@ enable = false
 shortname = ""
 # Gitalk comment config
 [params.page.comment.gitalk]
-enable = false
-owner = ""
-repo = ""
-clientId = ""
-clientSecret = ""
+enable = true
+owner = "pmasschelier"
+repo = "pmasschelier.github.io"
+clientId = "Ov23ct7Yivai5VlbmWpo"
+clientSecret = "deebc8916ba4f4765f1962bcbf12ba889c642a02"
 # Valine comment config
 [params.page.comment.valine]
 enable = false
