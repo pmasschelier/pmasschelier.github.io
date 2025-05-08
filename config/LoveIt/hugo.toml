@@ -399,10 +399,10 @@ shortname = ""
 # Gitalk comment config
 [params.page.comment.gitalk]
 enable = false
-owner = "pmasschelier"
-repo = "pmasschelier.github.io"
-clientId = "Ov23ct7Yivai5VlbmWpo"
-clientSecret = "deebc8916ba4f4765f1962bcbf12ba889c642a02"
+owner = ""
+repo = ""
+clientId = ""
+clientSecret = ""
 # Valine comment config
 [params.page.comment.valine]
 enable = false
