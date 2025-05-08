@@ -398,7 +398,7 @@ enable = false
 shortname = ""
 # Gitalk comment config
 [params.page.comment.gitalk]
-enable = true
+enable = false
 owner = "pmasschelier"
 repo = "pmasschelier.github.io"
 clientId = "Ov23ct7Yivai5VlbmWpo"
@@ -458,11 +458,11 @@ darkTheme = "github-dark"
 # giscus comment config (https://giscus.app/)
 [params.page.comment.giscus]
 # You can refer to the official documentation of giscus to use the following configuration.
-enable = false
-repo = ""
-repoId = ""
+enable = true
+repo = "pmasschelier/pmasschelier.github.io"
+repoId = "R_kgDOLUsaow"
 category = "Announcements"
-categoryId = ""
+categoryId = "DIC_kwDOLUsao84Cp5QD"
 # automatically adapt the current theme i18n configuration when empty
 lang = ""
 mapping = "pathname"
