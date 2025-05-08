@@ -390,7 +390,7 @@ Telegram = true
 
 #  Comment config
 [params.page.comment]
-enable = false
+enable = true
 # Disqus comment config
 [params.page.comment.disqus]
 enable = false
