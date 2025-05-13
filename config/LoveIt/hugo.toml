@@ -360,7 +360,7 @@ fullscreen = true
 #  social share links in post page
 [params.page.share]
 enable = true
-X = true              # 
+X = true
 Twitter = false
 Threads = true
 Facebook = true
@@ -373,11 +373,11 @@ Reddit = false
 VK = false
 Buffer = false
 Xing = false
-Line = true
+Line = false
 Instapaper = false
 Pocket = false
 Flipboard = false
-Weibo = true
+Weibo = false
 Blogger = false
 Baidu = false
 Odnoklassniki = false
