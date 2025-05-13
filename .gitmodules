@@ -4,10 +4,10 @@
 [submodule "themes/dead-simple"]
 	path = themes/dead-simple
 	url = git@github.com:barklan/hugo-dead-simple.git
-[submodule "content/posts/x86_64_strings/code/string-instructions"]
-	path = content/posts/x86_64_strings/code/string-instructions
-	url = git@github.com:pmasschelier/string-instructions.git
 [submodule "themes/LoveIt"]
 	path = themes/LoveIt
 	url = https://github.com/pmasschelier/LoveIt.git
 	branch = feature/goatCounter
+[submodule "content/posts/x86_64_strings/code/string-instructions"]
+	path = content/posts/x86_64_strings/code/string-instructions
+	url = https://github.com/pmasschelier/string-instructions.git

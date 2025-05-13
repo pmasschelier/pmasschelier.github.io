@@ -1,7 +1,28 @@
 {{ $path := .Get "file" }}
 {{ $lang := .Get "language" }}
+{{ $options := .Get "options" }}
+{{ $lineStart := .Get "start" | default 1 }}
+{{ $lineLimit := .Get "limit" | default 0 }}
+{{ $lineEnd := add $lineStart $lineLimit }}
+
 {{ with .Page.Resources.Get $path }}
-  {{ (print "```" $lang "\n" .Content "\n```") | markdownify }}
+  {{ $content := .Content }}
+  {{ if or (gt $lineLimit 0) (gt $lineStart 1) }}
+    {{ $lines := split $content "\n" }}
+    {{ $lineCount := len $lines }}
+    {{ if eq $lineLimit 0 }}
+      {{ $lineEnd = $lineCount }}
+    {{ end }}
+    
+    {{ if and (le $lineStart $lineCount) (le $lineEnd $lineCount) (le $lineStart $lineEnd) }}
+      {{ $startIndex := sub $lineStart 1 }}
+      {{ $selectedLines := first (sub $lineEnd $startIndex) (after $startIndex $lines) }}
+      {{ $content = delimit $selectedLines "\n" }}
+    {{ else }}
+      {{ warnf "Line range (%d-%d) out of bounds for file %q with %d lines" $lineStart $lineEnd $path $lineCount }}
+    {{ end }}
+  {{ end }}
+  {{ (print "```" $lang $options "\n" $content "\n```") | markdownify }}
 {{ else }}
   {{ errorf "Unable to get page resource %q" $path }}
 {{ end }}
