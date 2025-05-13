@@ -14,7 +14,7 @@ These are ones of the most used C functions, often implemented as buitin by the 
 On the other hand, the x86 architecture contains "string instructions", aimed to implement operations on strings at the hardware level.
 Moreover the x86 architecture was incrementally [enhanced with SIMD instructions over the years](https://en.wikipedia.org/wiki/X86_SIMD_instruction_listings) which allow to process multiple bytes of data in one instruction.
 
-In this article we'll inspect the implementation of `string.h` of the GNU standard library for x86, and see how it compares with a pure assembly implementation of these functions using string instructions and SIMD and try to explain the choices made by the GNU developers.
+In this article we'll inspect the implementation of `string.h` of the GNU standard library for x86, and see how it compares with a pure assembly implementation of these functions using string instructions and SIMD and try to explain the choices made by the GNU developers and to help you write better assembly.
 
 ## Disassembling a call to memcpy
 
@@ -69,7 +69,7 @@ So it is time to learn more about these string instructions.
 
 ## The string instructions of x86
 
-String instructions make operations on arrays elements pointed by rsi (source register) and rdi (destination register).
+String instructions make operations on arrays elements pointed by `rsi` (source register) and `rdi` (destination register).
 
 | instruction | Description    | Effect on registers    |
 |-------------|----------------|------------------------|
@@ -81,7 +81,7 @@ String instructions make operations on arrays elements pointed by rsi (source re
 
 Each of these instruction must have a suffix (b,w,d,q) indicating the type of elements pointed by rdi and rsi (byte, word, doubleword, quadword).
 
-These instructions may also have an instruction prefix indicating how to repeat the string instruction.
+These instructions may also have a prefix indicating how to repeat themselves.
 
 | prefix      | Description                                                     | Effect on registers                   |
 |-------------|-----------------------------------------------------------------|---------------------------------------|
@@ -94,12 +94,12 @@ The `repe/repz` and `repne/repnz` prefixes are used only with the `cmps` and `sc
 ### The movs instruction
 
 Now that we learnt more about the string instructions we can break down the effect of the `rep movsq` instruction:
-1. copy the quadword pointed by rsi to rdi
-2. add 8 to rsi and rdi so that they point onto the next quadword
-3. decrement rcx and repeat until rcx == 0
+1. copy the quadword pointed by `rsi` to `rdi`
+2. add 8 to `rsi` and `rdi` so that they point onto the next quadword
+3. decrement `rcx` and repeat until `rcx == 0`
 
 This is what we would expect memcpy to do except for one thing: bytes are not copied one by one, but in blocks of 8.
-Here, as the byte size of our arrays is a multiple of 8, we can copy the source array has an array of quadwords. This will necessitate 8 times less operations than copying the array byte by byte.
+Here, as the byte size of our arrays is a multiple of 8, we can copy the source array has an array of quadwords. This will necessitate 8 times less operations than copying the array one byte at a time.
 
 Let's change the size of the arrays to 1023 to see how the compiler will react when the array size is not a multiple of 8 anymore:
 ```asm
@@ -126,7 +126,7 @@ Instead of replacing the `rep movsq` by the `rep movsb` instruction gcc prefered
 
 ### The cmps instruction
 
-The `cmps` instruction will compare the elements pointed by rsi and rdi and will set the flag accordingly.
+The `cmps` instruction will compare the elements pointed by `rsi` and `rdi` and will set the flag accordingly.
 As `cmps` will set the ZF flag we can use the `repe/repz` and `repne/repnz` prefixes to respectively continue until the strings differ or stop when matching characters are encountered.
 
 Let's write a basic `memcmp` function using this instruction:
@@ -197,7 +197,7 @@ For production comparison refer to the Benchmarking section.
 
 ### The scas instruction
 
-The `scas` instruction will compare the content of rax with the element pointed by rdi and set the flag accordingly.
+The `scas` instruction will compare the content of `rax` with the element pointed by `rdi` and set the flag accordingly.
 We can use it in a similar way we did for `cmps` taking advantage of the `repe/repz` and `repne/repnz` prefixes.
 
 Let's write a simple `strlen` function using the `scasb` instruction:
@@ -228,7 +228,7 @@ For production functions always prefer loop alternative to compare groups of byt
 
 ### The lods instruction
 
-The lods instruction will load to the rax register the element pointed by rsi and increment rsi to point on the next element.
+The lods instruction will load to the `rax` register the element pointed by `rsi` and increment `rsi` to point on the next element.
 As this instruction does nothing else than a move on a register it is never used with a prefix (the value would be overwritten for each repetition).
 
 It can however be used to examine a string for instance to find a character:
@@ -315,15 +315,11 @@ cld ; CLear Direction
 ```
 
 
-{{< admonition info "The RFLAGS register" >}}
+Here you have a detailed view of the RFFLAGS register:
+{{< admonition info "The RFLAGS register" false >}}
+On Intel64 the upper 32 bits of the RFLAGS register are reserved and the lower 32-bits are the same as the EFLAGS register of 32 bits architectures.
 
-On Intel64 the upper 32 bits of the RFLAGS register are reserved and the lower 32-bits are the same as the EFLAGS register of 32 bits architectures.<br>
-&nbsp;
-<details>
-<summary>The EFLAGS registers on Intel64 and IA-32 architectures</summary>
-
-![The EFLAGS register on Intel64 and IA-32 architectures](images/eflags.png)
-</details>
+{{< figure title="The EFLAGS register on Intel64 and IA-32 architectures" src="images/eflags.png" >}}
 {{< /admonition >}}
 
 ### Saving and restoring RFLAGS
@@ -382,6 +378,10 @@ You should avoid setting the direction flag, especially when using `movs` and `s
 {{< /admonition >}}
 
 ## Vectorized string instructions
+
+Vectorized string instructions are quite intricate and should not be used in most cases.
+
+If you're in to discover one of the most strange instructions of x86 you can continue but if you prefer to watch graphs you can skip to the benchmarking section.
 
 ### Implicit ? Explicit ? Index ? Mask ?
 
@@ -485,44 +485,7 @@ BYTEWISE_CMP equ (PACKED_UBYTE | CMP_STR_EQU_EACH | CMP_STR_INV_VALID_ONLY | CMP
 
 Now that we know how to use the `vpcmpestri`  instruction and that we defined the imm8 flag to make a bytewise comparison of the content of AVX registers, we can write a version of `memcmp` using the vectorized string instructions.
 
-```nasm
-; int memcmp_vpcmpestri_unaligned(rdi: const void s1[.n], rsi: const void s2[.n], rdx: size_t n);
-memcmp_vpcmpestri_unaligned:
-    xor r10d, r10d
-	mov rax, rdx				; rax = n
-	test rdx, rdx				; if(n == 0)
-	jz .exit					;	 return n
-	vmovdqu xmm2, [rdi + r10]	; xmm2 = rdi[r10]
-	vmovdqu xmm3, [rsi + r10]	; xmm3 = rsi[r10]
-.loop:
-	; Compare xmm2 and xmm3 for equality and write the index of the differing byte in ecx
-    ; rax contains the length of the xmm2 string, rdx contains the length of the xmm3 string
-	; If all byte are the same rcx = 16
-	vpcmpestri xmm2, xmm3, BYTEWISE_CMP 
-	test cx, 0x10				; if(rcx != 16)
-	jz .end						; 	break
-	add r10, 0x10				; r10 += 10
-	vmovdqu xmm2, [rdi + r10]	; xmm2 = rdi[r10]
-	vmovdqu xmm3, [rsi + r10]	; xmm3 = rsi[r10]
-	sub rdx, 0x10				; rdx -= 16
-	ja .loop					; if(rdx > 0) goto .loop
-	xor eax, eax				; rax = 0
-	ret							; return
-.end:
-	xor eax, eax				; rax = 0
-    cmp rcx, rdx                ; if(index >= rdx)
-    jae .exit                   ;    return;
-	xor edx, edx				; rdx = 0
-    add r10, rcx                ; r10 += index
-	mov r8b, [rdi + r10]		; r8b = rdi[r10]
-	mov r9b, [rsi + r10]		; r9b = rsi[r10]
-	cmp r8b, r9b				; if(r8b > r9b)
-	seta al						; 	return 1
-	setb dl						; else
-	sub eax, edx				; 	return -1
-.exit:
-	ret
-```
+{{% code file="code/string-instructions/memcmp/memcmp.asm" language="asm" start=219 limit=36 %}}
 
 ## Benchmarking our string instructions
 
