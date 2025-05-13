@@ -1,6 +1,6 @@
 +++
 title = 'Use nasm preprocessor to write clean x86 asm'
-date = 2024-08-12T20:30:37+02:00
+date = 2025-04-12T20:30:37+02:00
 draft = false
 tags = [ 'asm', 'x86', 'x86_64', 'nasm', 'preprocessor']
 toc = true
