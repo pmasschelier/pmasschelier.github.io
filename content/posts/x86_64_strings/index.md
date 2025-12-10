@@ -1094,7 +1094,6 @@ As we can see, there is no interest in using the `stos` instruction without a pr
 This corroborates the claim of ["Optimizing subroutines in assembly language"](https://www.agner.org/optimize/):
 > String instructions without a repeat prefix are too slow and should be replaced by simpler instructions. The same applies to the LOOP instruction and to JECXZ on some processors.
 
-<!-- TODO: Write the vector string instruction section. -->
 <!-- TODO: Write instruction encoding section. -->
 
 ## Conclusion
