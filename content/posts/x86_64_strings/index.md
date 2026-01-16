@@ -9,12 +9,12 @@ toc = true
 ## Introduction
 
 The C standard library offers a bunch of functions (whose declarations can be found in the [string.h](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/string.h.html) header) to manage NULL-terminated strings and arrays.
-These are ones of the most used C functions, often implemented as builtin by the C compiler as they are crucial to the speed of programs.
+These are some of the most used C functions, often implemented as builtin by the C compiler, as they are crucial to the speed of programs.
 
 On the other hand, the x86 architecture contains "string instructions", aimed at implementing operations on strings at the hardware level.
-Moreover, the x86 architecture was incrementally [enhanced with SIMD instructions over the years](https://en.wikipedia.org/wiki/X86_SIMD_instruction_listings) which allows processing multiple bytes of data in one instruction.
+Moreover, the x86 architecture was incrementally [enhanced with SIMD instructions over the years](https://en.wikipedia.org/wiki/X86_SIMD_instruction_listings), allowing for the processing of multiple bytes of data in a single instruction.
 
-In this article we'll inspect the implementation of `string.h` of the GNU standard library for x86, and see how it compares with a pure assembly implementation of these functions using string instructions and SIMD and try to explain the choices made by the GNU developers and to help you write better assembly.
+In this article, we'll inspect the implementation of `string.h` of the GNU standard library for x86, and see how it compares with a pure assembly implementation of these functions using string instructions and SIMD, and try to explain the choices made by the GNU developers and help you write better assembly.
 
 ## Disassembling a call to memcpy
 
@@ -94,11 +94,11 @@ The `repe/repz` and `repne/repnz` prefixes are used only with the `cmps` and `sc
 ### The movs instruction
 
 Now that we have learned more about the string instructions, we can break down the effect of the `rep movsq` instruction:
-1. copy the quadword pointed by `rsi` to `rdi`
-2. add 8 to `rsi` and `rdi` so that they point onto the next quadword
-3. decrement `rcx` and repeat until `rcx == 0`
+1. Copy the quadword pointed by `rsi` to `rdi`
+2. Add 8 to `rsi` and `rdi` so that they point onto the next quadword
+3. Decrement `rcx` and repeat until `rcx == 0`
 
-This is what we would expect memcpy to do except for one thing: bytes are not copied one by one, but in blocks of 8.
+This is what we would expect memcpy to do, except for one thing: bytes are not copied one by one, but in blocks of 8.
 Here, as the byte size of our arrays is a multiple of 8, we can copy the source array as an array of quadwords. This will necessitate 8 times fewer operations than copying the array one byte at a time.
 
 Let's change the size of the arrays to 1023 to see how the compiler will react when the array size is not a multiple of 8 anymore:
@@ -122,7 +122,7 @@ Let's change the size of the arrays to 1023 to see how the compiler will react w
   401165:	mov    eax,0x0
   40116a:	ret
 ```
-Instead of replacing the `rep movsq` by the `rep movsb` instruction, gcc preferred to stop the repetition of the `movsq` instruction 8 bytes earlier and add `mov` instructions to copy a doubleword, a word and a byte.
+Instead of replacing the `rep movsq` by the `rep movsb` instruction, gcc preferred to stop the repetition of the `movsq` instruction 8 bytes earlier and add `mov` instructions to copy a doubleword, a word, and a byte.
 
 ### The cmps instruction
 
@@ -149,7 +149,7 @@ We use the `repe cmpsb` instruction to iterate over the strings s1 and s2 until 
 
 When we exit the `repe cmpsb` instruction, the RFLAGS register is set according to the last byte comparison. We can then use the `set[cc]` instructions to set bytes al and dl according to the result comparison.
 
-The same way the `memcpy` function copies groups of 8 bytes, we can use the `repe cmpsq` instruction to compare bytes by groups of 8 (or `cmpsd` for groups of 4 bytes on 32-bit architectures).
+In the same way, the `memcpy` function copies groups of 8 bytes; we can use the `repe cmpsq` instruction to compare bytes in groups of 8 (or `cmpsd` for groups of 4 bytes on 32-bit architectures).
 
 ```nasm {hl_lines=["7-8"]}
 ; int memcmp_cmpsq_unaligned(rdi: const void s1[.n], rsi: const void s2[.n], rdx: size_t n);
@@ -180,25 +180,25 @@ memcmp_cmpsq_unaligned:
 	ret
 ```
 
-To get the result of the comparison, we need to compare the last two quadwords. However, on little-endian systems, the lowest significant byte will be the first one and we want to compare the byte in lexical order. Hence, the need to convert the quadword to big-endian using the `bswap` instruction.
+To get the result of the comparison, we need to compare the last two quadwords. However, on little-endian systems, the lowest significant byte will be the first one, and we want to compare the byte in lexical order. Hence, the need to convert the quadword to big-endian using the `bswap` instruction.
 
 {{< admonition tip "Zero High Bits Starting with Specified Bit Position" >}}
 The instruction `bzhi` is useful when you need to mask out the higher bits of a register.
-Here when comparing the last quadword we need to erase all bits in `r8` and `r9` which aren't "valid" (i.e. which are not part of the input arrays).
+Here, when comparing the last quadword, we need to erase all bits in `r8` and `r9` that aren't "valid" (i.e. which are not part of the input arrays).
 
 You can find documentation about this instruction [here](https://www.felixcloutier.com/x86/bzhi).
 {{< /admonition >}}
 
 {{< admonition warning >}}
-This function should only be used for blocks of memory of size multiple of 8 with 8 bytes alignment.
+This function should only be used for blocks of memory of size multiples of 8 with 8-byte alignment.
 
-For production use refer to the Benchmarking section.
+For production use, refer to the Benchmarking section.
 {{< /admonition >}}
 
 ### The scas instruction
 
 The `scas` instruction will compare the content of `rax` with the element pointed by `rdi` and set the flag accordingly.
-We can use it in a similar way to what we did for `cmps` taking advantage of the `repe/repz` and `repne/repnz` prefixes.
+We can use it in a similar way to what we did for `cmps`, taking advantage of the `repe/repz` and `repne/repnz` prefixes.
 
 Let's write a simple `strlen` function using the `scasb` instruction:
 
@@ -221,17 +221,17 @@ The instruction sequence used here to calculate the length of a text string is a
 {{< /admonition >}}
 
 {{< admonition warning >}}
-Don't use this function for production code as it can only compare bytes one by one.
+Don't use this function for production code, as it can only compare bytes one by one.
 
-For production always prefer loop alternative to compare groups of bytes using the largest registers (see the Benchmarking section).
+For production, always prefer a loop alternative to compare groups of bytes using the largest registers (see the Benchmarking section).
 {{< /admonition >}}
 
 ### The lods instruction
 
 The lods instruction will load to the `rax` register the element pointed to by `rsi` and increment `rsi` to point to the next element.
-As this instruction does nothing else than a move on a register, **it is never used with a prefix** (the value would be overwritten for each repetition).
+As this instruction does nothing but set register, **it is never used with a prefix** (the value would be overwritten for each repetition).
 
-It can, however, be used to examine a string, for instance to find a character:
+It can, however, be used to examine a string, for instance, to find a character:
 ```asm {hl_lines=[5]}
 ; char* strchr_lodsb(rdi: const char* s, rsi: int c)
 strchr_lodsb:
@@ -250,7 +250,7 @@ strchr_lodsb:
 ```
 
 {{< admonition warning >}}
-For production code always prefer to load data using the largest registers (see the Benchmarking section).
+For production code, always prefer to load data using the largest registers (see the Benchmarking section).
 {{< /admonition >}}
 
 ### The stos instruction
@@ -295,7 +295,7 @@ int main(int argc, char *argv[]) {
 {{< admonition tip >}}
 Always use the `rep movsq` instruction to initialize large blocks of memory.
 
-For small blocks of memory use unrolled loop and the largest registers.
+For small blocks of memory, use an unrolled loop and the largest registers.
 {{< /admonition >}}
 
 ## Let's turn around
@@ -305,7 +305,7 @@ For small blocks of memory use unrolled loop and the largest registers.
 It wouldn't be as much fun if we couldn't make it backward :smile: 
 
 On x86, the flag register (RFLAGS) has a **direction flag**, `RFFLAGS.DF`, which controls the direction of the string operations.
-This flag can be set and cleared respectively using the `std` and `cld` instructions.
+This flag can be set and cleared respectively, using the `std` and `cld` instructions.
 
 ```asm
 std ; SeT Direction
@@ -317,14 +317,14 @@ cld ; CLear Direction
 
 Here you have a detailed view of the RFLAGS register:
 {{< admonition info "The RFLAGS register" false >}}
-On Intel64, the upper 32 bits of the RFLAGS register are reserved and the lower 32-bits are the same as the EFLAGS register of 32-bit architectures.
+On Intel64, the upper 32 bits of the RFLAGS register are reserved, and the lower 32-bits are the same as the EFLAGS register of 32-bit architectures.
 
 {{< figure title="The EFLAGS register on Intel64 and IA-32 architectures" src="images/eflags.png" >}}
 {{< /admonition >}}
 
 ### Saving and restoring RFLAGS
 
-When you write an assembly subroutine using string instructions you should always:
+When you write an assembly subroutine using string instructions, you should always:
 - save the state of the RFLAGS register
 - set or clear RFLAGS.DF
 - do your work
@@ -334,7 +334,7 @@ This way, your subroutine will work independently of the state of the direction 
 
 To do so, you can push RFLAGS to the stack using the `pushfq` instruction and restore it using the `popfq` instruction.
 
-However, the [System V Application Binary Interface for AMD64](https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build) state that:
+However, the [System V Application Binary Interface for AMD64](https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build) states that:
 > The direction flag DF in the %rFLAGS register must be clear (set to “forward” direction) on function entry and return.
 
 So, if you're writing code targeting the System V ABI, you may assume that the direction flag is clear and ensure that you keep it clear when leaving your functions.
@@ -456,7 +456,7 @@ The MSB of imm8 has no defined effect and should be 0.
 
 This means that if we want to compare xmm1 and xmm2 for byte equality and get the index of the first non-matching byte, we have to set `imm8 = 0b0001'1000`
 
-We can define some macro so you do not have to remind of this:
+We can define some macros so you do not have to remember this:
 ```nasm
 PACKED_UBYTE 			equ	0b00
 PACKED_UWORD 			equ	0b01
@@ -474,7 +474,7 @@ CMP_STRM_BIT_MASK		equ (0b00 << 6)
 CMP_STRM_BYTE_MASK	    equ (0b01 << 6)
 ```
 
-From these definitions we can create the imm8 flag for a `vpcmpxstrx` instruction with bitwise or.
+From these definitions, we can create the imm8 flag for a `vpcmpxstrx` instruction with bitwise or.
 
 For instance, a flag for the `vpcmpestri` instruction to get the index of the first differing byte:
 ```nasm
@@ -483,7 +483,7 @@ BYTEWISE_CMP equ (PACKED_UBYTE | CMP_STR_EQU_EACH | CMP_STR_INV_VALID_ONLY | CMP
 
 ### A vectorized memcmp version
 
-Now that we know how to use the `vpcmpestri`  instruction and that we defined the imm8 flag to make a bytewise comparison of the content of AVX registers, we can write a version of `memcmp` using the vectorized string instructions.
+Now that we know how to use the `vpcmpestri`  instruction and that we defined the imm8 flag to make a byte-wise comparison of the content of AVX registers, we can write a version of `memcmp` using the vectorized string instructions.
 
 {{% code file="code/string-instructions/memcmp/memcmp.asm" language="asm" start=219 limit=36 %}}
 
@@ -494,7 +494,7 @@ Now that we know how to use the `vpcmpestri`  instruction and that we defined th
 
 At the beginning of the previous part, we disassembled a call to memcpy to see that it had been inlined with a `rep movsq` instruction by gcc.
 
-The compiler is able to realize this optimization because the alignment and the size of both arrays are compile-time known.
+The compiler is able to realize this optimization because the alignment and the size of both arrays are known at compile time.
 Let's add an indirection to the `memcpy` call so that the compiler can't rely on this information anymore.
 
 
@@ -537,12 +537,12 @@ objdump --source-comment="; " --disassembler-color=extended --disassembler-optio
 ```
 {{% /columns %}}
 
-Another situation in which gcc will produce a proper call to the libc memcpy function is when the target architecture has vector extensions. In this situation, the compiler is aware that memcpy implementation will use vector instructions which may be faster than `rep movs`.
+Another situation in which gcc will produce a proper call to the libc memcpy function is when the target architecture has vector extensions. In this situation, the compiler is aware that the memcpy implementation will use vector instructions, which may be faster than `rep movs`.
 You can test it by adding the flag `-march=corei7` to your gcc command to see what code gcc will produce for an architecture with vector extensions (you can see this [in godbolt](https://godbolt.org/#g:!((g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:18,fontUsePx:'0',j:1,lang:___c,selection:(endColumn:2,endLineNumber:10,positionColumn:2,positionLineNumber:10,selectionStartColumn:2,selectionStartLineNumber:10,startColumn:2,startLineNumber:10),source:'%23include+%3Cstring.h%3E%0A%0A%23define+BUF_LEN+1024%0Achar+a%5BBUF_LEN%5D%3B%0Achar+b%5BBUF_LEN%5D%3B%0A%0Aint+main(void)+%7B%0A++memcpy(b,+a,+BUF_LEN)%3B%0A++return+0%3B%0A%7D'),l:'5',n:'0',o:'C+source+%231',t:'0')),k:57.075553476053145,l:'4',m:50,n:'0',o:'',s:0,t:'0'),(g:!((h:output,i:(editorid:1,fontScale:18,fontUsePx:'0',j:1,wrap:'1'),l:'5',n:'0',o:'Output+of+x86-64+gcc+14.2+(Compiler+%231)',t:'0')),header:(),l:'4',m:50,n:'0',o:'',s:0,t:'0')),k:58.79910913605523,l:'3',n:'0',o:'',t:'0'),(g:!((g:!((h:compiler,i:(compiler:cg142,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:___c,libs:!(),options:'-march%3Dcorei7',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+x86-64+gcc+14.2+(Editor+%231)',t:'0')),k:46.82444577591372,l:'4',m:60.76707291803545,n:'0',o:'',s:0,t:'0'),(g:!((h:tool,i:(args:'',argsPanelShown:'1',compilerName:'x86-64+clang+13.0.0',editorid:1,fontScale:14,fontUsePx:'0',j:1,monacoEditorHasBeenAutoOpened:'1',monacoEditorOpen:'1',monacoStdin:'1',stdin:'',stdinPanelShown:'1',toolId:clangtidytrunk,wrap:'1'),l:'5',n:'0',o:'clang-tidy+(trunk)+x86-64+gcc+14.2+(Editor+%231,+Compiler+%231)',t:'0')),l:'4',m:39.232927081964554,n:'0',o:'',s:0,t:'0')),k:41.20089086394483,l:'3',n:'0',o:'',t:'0')),l:'2',n:'0',o:'',t:'0')),version:4)).
 
 We can now compare different assembly versions of memcpy to its glibc implementation.
 
-I wrote 8 version of a program copying 4MiB of memory using: an unoptimized for loop, the glibc memcpy function, `rep movsb`, `rep movsq`, the SSE2 extension and the AVX and AVX2 extensions.
+I wrote 8 versions of a program copying 4MiB of memory using: an unoptimized for loop, the glibc memcpy function, `rep movsb`, `rep movsq`, the SSE2 extension, and the AVX and AVX2 extensions.
 I also wrote a backward copy to compare the speed of `rep movsb` when RFLAGS.DF is set.
 
 {{< tabs >}}
@@ -573,7 +573,7 @@ I also wrote a backward copy to compare the speed of `rep movsb` when RFLAGS.DF 
 {{< /tabs >}}
 
 {{< admonition >}}
-Note that for the "dummy version" i forced the optimization level to -O1.
+Note that for the "dummy version" I forced the optimization level to -O1.
 
 Otherwise, gcc would replace the call to our custom copy function with a call to memcpy (when -O2) or write a vectorized loop using SSE2 extension (when -O3).
 You can [check this in godbolt](https://godbolt.org/#g:!((g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:18,fontUsePx:'0',j:1,lang:___c,selection:(endColumn:2,endLineNumber:8,positionColumn:2,positionLineNumber:8,selectionStartColumn:2,selectionStartLineNumber:8,startColumn:2,startLineNumber:8),source:'%23include+%3Cstddef.h%3E%0A%0Avoid+*memcpy_dummy(void+*restrict+dst,+const+void+*restrict+src,+size_t+n)+%7B%0A++void+*const+ret+%3D+dst%3B%0A++for+(int+i+%3D+0%3B+i+%3C+n%3B+i%2B%2B)%0A++++*((char+*)dst%2B%2B)+%3D+*((char+*)src%2B%2B)%3B%0A++return+ret%3B%0A%7D'),l:'5',n:'0',o:'C+source+%231',t:'0')),k:57.075553476053145,l:'4',m:50,n:'0',o:'',s:0,t:'0'),(g:!((h:output,i:(editorid:1,fontScale:18,fontUsePx:'0',j:1,wrap:'1'),l:'5',n:'0',o:'Output+of+x86-64+gcc+14.2+(Compiler+%231)',t:'0')),header:(),l:'4',m:50,n:'0',o:'',s:0,t:'0')),k:58.79910913605523,l:'3',n:'0',o:'',t:'0'),(g:!((g:!((h:compiler,i:(compiler:cg142,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'1',demangle:'0',directives:'0',execute:'0',intel:'0',libraryCode:'0',trim:'1',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:14,fontUsePx:'0',j:1,lang:___c,libs:!(),options:'-O2',overrides:!(),selection:(endColumn:1,endLineNumber:1,positionColumn:1,positionLineNumber:1,selectionStartColumn:1,selectionStartLineNumber:1,startColumn:1,startLineNumber:1),source:1),l:'5',n:'0',o:'+x86-64+gcc+14.2+(Editor+%231)',t:'0')),k:46.82444577591372,l:'4',m:60.76707291803545,n:'0',o:'',s:0,t:'0'),(g:!((h:tool,i:(args:'',argsPanelShown:'1',compilerName:'x86-64+clang+13.0.0',editorid:1,fontScale:14,fontUsePx:'0',j:1,monacoEditorHasBeenAutoOpened:'1',monacoEditorOpen:'1',monacoStdin:'1',stdin:'',stdinPanelShown:'1',toolId:clangtidytrunk,wrap:'1'),l:'5',n:'0',o:'clang-tidy+(trunk)+x86-64+gcc+14.2+(Editor+%231,+Compiler+%231)',t:'0')),l:'4',m:39.232927081964554,n:'0',o:'',s:0,t:'0')),k:41.20089086394483,l:'3',n:'0',o:'',t:'0')),l:'2',n:'0',o:'',t:'0')),version:4) by changing the level of optimization.
@@ -586,7 +586,7 @@ Here are the results I got on my "13th Gen Intel(R) Core(TM) i7-1355U (12) @ 5.0
 
 {{< figure src="images/benchmark-memcpy.svg" >}}
 
-On my hardware, all the implementations are reasonably close, the slowest by far being the backward copy (setting RFLAGS.DF), the for loop and the `movb` version (which copy only one byte at a time), but you may have different results depending on your CPU.
+On my hardware, all the implementations are reasonably close, the slowest by far being the backward copy (setting RFLAGS.DF), the for loop, and the `movb` version (which copies only one byte at a time), but you may have different results depending on your CPU.
 
 This is an example of string instructions being nearly as fast as copying using the greatest registers of the processor.
 
@@ -599,17 +599,17 @@ The "Intel® 64 and IA-32 Architectures Software Developer’s Manual - Volume 1
 > To improve performance, more recent processors support modifications to the processor’s operation during the string store operations initiated with the MOVS, MOVSB, STOS, and STOSB instructions. This optimized operation, called fast-string operation, is used when the execution of one of those instructions meets certain initial conditions (see below). Instructions using fast-string operation effectively operate on the string in groups that may include multiple elements of the native data size (byte, word, doubleword, or quadword).
 
 The general conditions for fast-string operations to happen are:
-- The count of bytes must be high
-- Both source and destination must be aligned (on the size of the greatest registers you have)
-- The direction must be forward
-- The distance between source and destination must be at least the cache line size
+- The count of bytes must be high.
+- Both source and destination must be aligned (on the size of the greatest registers you have).
+- The direction must be forward.
+- The distance between source and destination must be at least the cache line size.
 - The memory type for both source and destination must be either write-back or write-combining (you can normally assume the latter condition is met).
 
-### So how does the glibc implement the memcpy function ?
+### So, how does the glibc implement the memcpy function?
 
 We have two ways to know how the memcpy works underneath. The first one is looking at the source code of the glibc, the second one is to dump the disassembled machine code in gdb.
 
-We can get the code of glibc v.2.40, the GNU implementation of lib c, and verify its signature using these commands:
+We can get the code of glibc v.2.40, the GNU implementation of libc, and verify its signature using these commands:
 ```sh
 wget https://ftp.gnu.org/gnu/glibc/glibc-2.40.tar.xz https://ftp.gnu.org/gnu/glibc/glibc-2.40.tar.xz.sig
 gpg --recv-keys 7273542B39962DF7B299931416792B4EA25340F8
@@ -679,7 +679,7 @@ For i386 (ie x86_32) architectures, the **sysdeps/i386/memcopy.h** macro definit
     } while (0)
 ```
 
-For x86_64, the implementation is much more intricate as it requires to choose a `memcpy` implementation according to the vector extensions available. The **sysdeps/x86_64/multiarch/memcpy.c** file includes the **ifunc-memmove.h** which defines a IFUNC_SELECTOR function which returns a pointer to a function according to the caracteristics of the CPU running the program:
+For x86_64, the implementation is much more intricate as it requires choosing a `memcpy` implementation according to the vector extensions available. The **sysdeps/x86_64/multiarch/memcpy.c** file includes the **ifunc-memmove.h**, which defines an IFUNC_SELECTOR function that returns a pointer to a function according to the characteristics of the CPU running the program:
 
 _sysdeps/x86_64/multiarch/memcpy.c_
 {{% code file="code/glibc-2.40/sysdeps/x86_64/multiarch/memcpy.c" language="c" options={hl_lines="20-30"} %}}
@@ -711,14 +711,14 @@ Let's now hit the `finish` gdb command to see what the selector returns in `rax`
 
 {{< figure title="Return value of IFUNC_SELECTOR" src="images/gdb-ifunc.png">}}
 
-The `IFUNC_SELECTOR` returned a pointer to `__memmove_avx_unaligned_erms` this function is defined in _sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S_ and _sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S_ with **handwritten assembly**.
+The `IFUNC_SELECTOR` returned a pointer to `__memmove_avx_unaligned_erms`. This function is defined in _sysdeps/x86_64/multiarch/memmove-avx-unaligned-erms.S_ and _sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S_ with **handwritten assembly**.
 
 But it's quite difficult to figure out the execution flow while reading this, so let's put a breakpoint on this symbol, hit continue, and run this function step by step.
 
 {{< admonition >}}
 The "erms" parts of `__memmove_avx_unaligned_erms` stands for "Enhanced Rep Movsb/Stosb" which is what we called earlier **fast-string operation**.
 
-It is named this way in the ["Intel® 64 and IA-32 Architectures Optimization Reference Manual: Volume 1"](https://cdrdv2-public.intel.com/814198/248966-Optimization-Reference-Manual-V1-050.pdf) section 3.7.6 and correspond to a byte in `cpuid` which indicates that this feature is available.
+It is named this way in the ["Intel® 64 and IA-32 Architectures Optimization Reference Manual: Volume 1"](https://cdrdv2-public.intel.com/814198/248966-Optimization-Reference-Manual-V1-050.pdf) section 3.7.6 and corresponds to a byte in `cpuid` which indicates that this feature is available.
 {{< /admonition >}}
 
 I highlighted the code reached during the execution of the function:
@@ -726,9 +726,9 @@ I highlighted the code reached during the execution of the function:
 *__memmove_avx_unaligned_erms*
 {{% code file="code/__memmove_avx_unaligned_erms.asm" language="asm" options={hl_lines=["1-7","53-54","166-188"]} %}}
 
-*Remember: We are copying 4Mib of data so rdx = 0x400000.*
+*Remember: We are copying 4Mib of data, so rdx = 0x400000.*
 
-The `__memmove_avx_unaligned_erms` performs several test over the `rdx` register which contains the size of our buffer (3rd argument for System V ABI).
+The `__memmove_avx_unaligned_erms` performs several tests over the `rdx` register, which contains the size of our buffer (3rd argument for System V ABI).
 
 Here is each test performed and the result of the conditional jump:
 | Condition                                             | Taken ?            |
@@ -775,7 +775,7 @@ You can read all the details of the choices made for the `__x86_shared_non_tempo
 
 When the block to copy is greater than `__x86_shared_non_temporal_threshold`, the `__memmove_avx_unaligned_erms` implementation uses an unrolled loop of AVX2 registers with prefetching and **non-temporal stores** using the `vmovntdq` (vex mov non-temporal double quadword).
 
-The ["Intel® 64 and IA-32 Architectures Optimization Reference Manual: Volume 1"](https://cdrdv2-public.intel.com/814198/248966-Optimization-Reference-Manual-V1-050.pdf) section 9.6.1 gives hint on when to use non-temporal stores:
+The ["Intel® 64 and IA-32 Architectures Optimization Reference Manual: Volume 1"](https://cdrdv2-public.intel.com/814198/248966-Optimization-Reference-Manual-V1-050.pdf) section 9.6.1 gives hints on when to use non-temporal stores:
 
 > Use non-temporal stores in the cases when the data to be stored is:
 > - Write-once (non-temporal).
@@ -837,7 +837,7 @@ To broadcast the first byte of value in all bytes of the rax register, the compi
 I wrote a macro to reproduce this:
 {{% code file="code/string-instructions/memset/memset.asm" language="asm" start=33 end=40 %}}
 
-Once again, I wrote 6 different versions of the `memset` function: an unoptimized for loop, the glibc `memset` function, `rep stosb`, `rep stosq` and the AVX and AVX2 extensions. 
+Once again, I wrote 6 different versions of the `memset` function: an unoptimized for loop, the glibc `memset` function, `rep stosb`, `rep stosq`, and the AVX and AVX2 extensions. 
 
 {{< tabs >}}
 {{< tab "generic" >}}
@@ -867,15 +867,14 @@ Once again, I wrote 6 different versions of the `memset` function: an unoptimize
 {{< /tabs >}}
 
 {{< admonition info >}}
-Like for the memcpy implementation, without the `__attribute__((optimize("O1")))` gcc would replace the call to our custom function by a call to memset.
+Like for the memcpy implementation, without the `__attribute__((optimize("O1")))`, gcc would replace the call to our custom function by a call to memset.
 {{< /admonition >}}
 
 Here are the results of the benchmarks on my computer:
 
 {{< figure title="Benchmark of memset implementations" src="images/benchmark-memset.svg">}}
 
-We can see that except the _dummy_, _movb_ (very similar implementation) and _stosb_std_ (which is a reversed copy),
-all the implementations managed to use the **fast-string operations** and have the save low execution time.
+We can see that, except for the _dummy_, _movb_ (very similar implementation) and _stosb_std_ (which is a reversed copy), all the implementations managed to use the **fast-string operations** and have the same low execution time.
 
 Once again, we can explore the implementation of glibc using gdb. Like memcpy, it is an **indirect function** which, in my case, resolves into `__memset_avx2_unaligned_erms`.
 
@@ -891,21 +890,21 @@ This is way shorter than the code for `memcpy`, and there is one big difference:
 {{< admonition tip "Use of rep stosq">}}
 `__x86_rep_stosb_threshold` = 0x800 = 8 * 256
 
-This means that for more than 8 copies using ymm registers the memset implementation will use the `rep stosq` instruction.
+This means that for more than 8 copies using ymm registers, the memset implementation will use the `rep stosq` instruction.
 {{< /admonition >}}
 
 <!-- This is due to the fact that the memset function is comparable to the storing part of the memcpy function. Which means we have no load, hence no interest in prefetching large blocks of memory. -->
 
 ### Benchmark 3: strlen
 
-If, like many C developers, you're used to passing around zero-terminated strings, your code may call strlen a bunch of times so this function had better be fast.
+If, like many C developers, you're used to passing around zero-terminated strings, your code may call strlen a bunch of times, so this function had better be fast.
 
 We saw a way to write a `strlen` function with the `repne scasb` instruction.
-But there are other ways to write a strlen function by using vectorization, either on 64-bit register or using SIMD extensions.
+But there are other ways to write a strlen function by using vectorization, either on a 64-bit register or using SIMD extensions.
 
-To find a null byte in a quadword we can define a helper macro which takes two parameters:
-- A destination register whose byte will have their sign bit set only if the corresponding byte in the source register is null.
-- A source register where to find the null bytes.
+To find a null byte in a quadword, we can define a helper macro which takes two parameters:
+- A destination register whose bytes will have their sign bit set only if the corresponding byte in the source register is null.
+- A source register where we'll look for the null bytes.
 
 .
 {{% code file="code/string-instructions/find_zero.asm" language="asm" %}}
@@ -939,16 +938,16 @@ We cannot use it to code a `repne scasq` implementation because scasq can only s
 {{< /tabs >}}
 
 {{< admonition info >}}
-Like for the memcpy implementation, without the `__attribute__((optimize("O1")))` gcc would replace the call to our custom function by a call to strlen.
+Like for the memcpy implementation, without the `__attribute__((optimize("O1")))`, gcc would replace the call to our custom function by a call to strlen.
 {{< /admonition >}}
 
 Here are the results of the benchmarks on my computer:
 
 {{< figure title="Benchmark of strlen implementations" src="./images/benchmark-strlen.svg">}}
 
-As we can see, the `repne scasb` instruction is by far the worst way to write a strlen function while the standard `strlen` function outperforms every vectorized implementation.
+As we can see, the `repne scasb` instruction is by far the worst way to write a strlen function, while the standard `strlen` function outperforms every vectorized implementation.
 
-We can again have a look to the glibc implementation of `strlen` for AVX2:
+We can again have a look at the glibc implementation of `strlen` for AVX2:
 
 ___strlen_avx2_
 {{% code file="code/__strlen_avx2.asm" language="asm {hl_lines=[\"1-11\", \"45-92\"]}" %}}
@@ -956,7 +955,7 @@ ___strlen_avx2_
 After aligning rdi on 16 bytes, `__strlen_avx2` performs an unrolled loop to find the null byte.
 In the loop body, the function loads 4 * 32 = 128 bytes each time, reduces them using the `vpminub` (Vector Packed MIN Unsigned Byte) instruction and compares the result to zero using the `vpcmpeqb` (Vector Packed CoMPare EQual Byte) instruction.
 
-Note that in order to find the null byte position in the register, the `__strlen_avx2` function uses the `tzcnt` (Count Trailing Zeroes) instruction instead of the `bsf` (Bit Scan Forward) instruction.
+Note that in order to find the null byte position in the register, the `__strlen_avx2` function uses the `tzcnt` (Count Trailing Zeros) instruction instead of the `bsf` (Bit Scan Forward) instruction.
 
 These two instructions are very similar.<br>
 According to the "Intel® 64 and IA-32 Architectures Software Developer’s Manual - Volume 2: Instruction Set Reference 4.3":
@@ -999,15 +998,15 @@ This function can also be implemented using `vpcmpestri`.
 {{< /tabs >}}
 
 {{< admonition info >}}
-Note that even with -O3 the compiler couldn't replace our custom c function by a call to memcmp.
+Note that even with -O3, the compiler couldn't replace our custom C function with a call to memcmp.
 
-Indeed, `memcmp` only guarantees the value of the sign bit of the return value in the case of different data. But we may be wanting specifically -1, 0 or 1 to be returned, and the compiler can't assume otherwise.
+Indeed, `memcmp` only guarantees the value of the sign bit of the return value in the case of different data. But we may be wanting specifically -1, 0, or 1 to be returned, and the compiler can't assume otherwise.
 {{< /admonition >}}
 
 <!-- ![Benchmark of memcmp implementations](images/benchmark-memcmp.svg) -->
 {{< figure title="Benchmark of memcmp implementations" src="images/benchmark-memcmp.svg" >}}
 
-The `repe cmpsb` instruction is almost as bad as the `repne scasb` instruction. But this time we could give an implementation using `repe cmpsq` which performs almost as well as the vectorized string and AVX extensions on my computer.
+The `repe cmpsb` instruction is almost as bad as the `repne scasb` instruction. But this time we could give an implementation using `repe cmpsq` that performs almost as well as the vectorized string and AVX extensions on my computer.
 
 {{< admonition tip>}}
 When you are in a situation where you could use a `cmpsb` or `cmpsq` instruction, you should always prefer make comparisons using the greatest registers available.
@@ -1050,13 +1049,13 @@ That's why the implementation using `movsb` and `movb` as well as `mosq` and `mo
 {{< /tabs >}}
 
 {{< admonition >}}
-Even with `-O3` gcc did not replace my `strchr` implementation with a call to the standard `strchr`.
+Even with `-O3`, gcc did not replace my `strchr` implementation with a call to the standard `strchr`.
 It even actually generated a pretty bad implementation (maybe this could be fixed by feeding it a more contrived implementation).
 {{< /admonition >}}
 
 The implementation is similar to the `strlen` implementation, especially the 64-bit one. Indeed, we still need to find the end of the string but we also need to find a given byte, and as we know how to find a `0x00` byte in a quadword using the `find_zero` macro, we just need to `xor` the quadword with the byte to nullify all the equal bytes in the quadword (`a XOR a = 0` is equivalent to `a = a`) and then find the `0x00` bytes.
 
-Here are the result of the benchmark on my computer:
+Here are the results of the benchmark on my computer:
 
 {{< figure title="Benchmark of strcnt implementations" src="./images/benchmark-strchr.svg" >}}
 
@@ -1089,7 +1088,7 @@ The benchmark result on my computer:
 
 {{< figure title="Benchmark of iota implementations" src="./images/benchmark-iota.svg">}}
 
-As we can see, there is no interest in using the `stos` instruction without a prefix as it will generally perform worse than an equivalent `mov` instruction.	
+As we can see, there is no interest in using the `stos` instruction without a prefix, as it will generally perform worse than an equivalent `mov` instruction.	
 
 This corroborates the claim of ["Optimizing subroutines in assembly language"](https://www.agner.org/optimize/):
 > String instructions without a repeat prefix are too slow and should be replaced by simpler instructions. The same applies to the LOOP instruction and to JECXZ on some processors.
@@ -1098,14 +1097,14 @@ This corroborates the claim of ["Optimizing subroutines in assembly language"](h
 
 ## Conclusion
 
-We've seen a lot in this article. Now what should you remember from all of this to write better assembly code ?
+We've seen a lot in this article. Now, what should you remember from all of this to write better assembly code?
 
 Here are some general guidelines you can keep in mind when using string instructions:
 - You should use `rep stosq` to initialize large blocks of memory.
 - You should use `rep movsq` to copy large blocks of memory (more than 512 bytes) which fit in your cache (~7Mib), for larger blocks of memory you should use prefetching mechanisms, AVX extensions, unrolled loop and non-temporal-stores.
-- Do not use string instructions without repeat prefixes as they will generally be slower than their classical alternatives.
-- Do not use `scas`, `cmps` and `lods` as you can always come up with more efficient (AVX) versions.
+- Do not use string instructions without repeat prefixes, as they will generally be slower than their classical alternatives.
+- Do not use `scas`, `cmps`, and `lods`, as you can always come up with more efficient (AVX) versions.
 
 String instructions are very portable instructions as they're present on all x86 processors (back to the 8086).
-However, most of the time they tend to perform slower than the alternatives using the largest available registers.
-Therefore, except for `rep stosq` and `rep movsq` you shouldn't use them unless you're optimizing for size.
+However, most of the time, they tend to perform slower than the alternatives using the largest available registers.
+Therefore, except for `rep stosq` and `rep movsq`, you shouldn't use them unless you're optimizing for size.
